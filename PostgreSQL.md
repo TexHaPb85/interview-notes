@@ -180,7 +180,44 @@ CREATE INDEX idx_hash_token ON sessions USING hash(token);
 Unlike a B-tree that stores a single value per row, a GIN index stores a map of keys and
 their **posting lists** (the row IDs where each key occurs). Good for arrays, full-text, JSONB.
 
-Cost: high write overhead (must scan every element to update the map) and large index size.
+```text
+Source rows (one column holds MANY values: array / JSONB / tsvector):
+
+   ctid    tags
+   ─────   ─────────────────────────
+   (0,1)   {postgres, index, sql}
+   (0,2)   {postgres, mvcc}
+   (0,3)   {index, btree}
+
+GIN inverts it — instead of "row → its values" it stores "value → its rows"
+(like the index at the back of a book: word → list of page numbers):
+
+   ENTRY TREE                 POSTING LISTS
+   (B-tree of keys)           (sorted ctids, one list per key)
+   ┌────────────┐
+   │ btree      │ ──►  (0,3)
+   │ index      │ ──►  (0,1) (0,3)
+   │ mvcc       │ ──►  (0,2)
+   │ postgres   │ ──►  (0,1) (0,2)
+   │ sql        │ ──►  (0,1)
+   └────────────┘
+```
+
+Lookup walks the entry tree once, then reads the matching posting list:
+
+```text
+WHERE tags @> '{postgres}'
+   → find "postgres" in the entry tree   (fast B-tree descent over keys)
+   → read its posting list: (0,1), (0,2)
+   → fetch those two heap tuples
+```
+
+When a key appears in very many rows, its flat posting list is promoted to a
+**posting tree** (its own B-tree of ctids) so it stays searchable.
+
+Cost: large index and heavy writes — one row with N elements = N key insertions.
+Softened by the **pending list** (`fastupdate = on`): new entries are buffered and
+merged into the main index later by VACUUM or when the list fills.
 
 ## Case study: "App is slow, we suspect the DB"
 
