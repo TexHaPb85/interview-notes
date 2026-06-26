@@ -10,10 +10,12 @@ syntax-highlighted and readable on a phone.
 | Topic | Status |
 |-------|--------|
 | [PostgreSQL in 1 hour](PostgreSQL.md) | ✅ done |
-| [Java memory model](Java-memory-model.md) | 🚧 in progress |
-| [Java multithreading](Java-multithreading.md) | 🚧 in progress |
-| [SOLID principles](SOLID-principles.md) | 🚧 in progress |
-| [React / JS / TS](React-JS-TS.md) | 🚧 in progress |
+| [Java multithreading](Java%20multithreading.md) | ✅ done |
+| [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](AWS.md) | ✅ done |
+| [Docker](Docker.md) | ✅ done |
+| [React / JS / TS](React_JS_TS.md) | ✅ done |
+| [Java memory model](Java-memory-model.md) | ⬜ planned |
+| [SOLID principles](SOLID-principles.md) | ⬜ planned |
 
 Legend: ✅ done · 🚧 in progress · ⬜ planned
 
