@@ -472,3 +472,87 @@ loop:
     success → done
     error 40001 (serialization_failure) → ROLLBACK, retry from top
 ```
+
+## Partitioning
+
+Splitting one big table into smaller physical tables (**partitions**) by a **partition key**,
+while queries still see one logical table.
+
+```sql
+CREATE TABLE events (id bigint, created_at date, ...) PARTITION BY RANGE (created_at);
+
+CREATE TABLE events_2024_01 PARTITION OF events
+    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+CREATE TABLE events_2024_02 PARTITION OF events
+    FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
+```
+
+Strategies: `RANGE` (dates/numbers), `LIST` (discrete values e.g. country), `HASH` (even spread).
+
+### Partitioning vs indexing
+
+For a **point lookup** partitioning buys almost nothing — a B-tree is logarithmic, so doubling
+the rows adds only ~1 level. Partitioning is **not** a lookup-speed tool; it solves different
+problems:
+
+1. **Partition pruning** — if the query filters on the *partition key*, Postgres skips whole
+   partitions without touching their indexes at all. A free coarse level on top of your B-tree.
+2. **Instant data lifecycle** — `DROP`/`DETACH PARTITION` removes a month of data in
+   milliseconds. The alternative, `DELETE ... WHERE date < ...`, makes millions of dead tuples
+   → bloat → heavy VACUUM. This is the #1 real-world reason to partition (logs, time-series).
+3. **Smaller indexes that fit in RAM** — one B-tree over 1B rows may not fit in `shared_buffers`;
+   per-partition indexes do. Inserts hit fewer, hotter pages.
+4. **Cheaper maintenance** — `VACUUM` / `ANALYZE` / `REINDEX` run per-partition, in parallel.
+
+**Trade-off:** a query that does *not* filter on the partition key gets **slower** — Postgres
+must probe every partition's index.
+
+> **Indexing speeds up finding rows; partitioning speeds up managing and dropping rows.**
+> They are complementary, not alternatives — you still index each partition.
+
+## Scaling a production database
+
+### Vertical scaling (scale up) — bigger machine
+
+Add CPU / RAM / faster disk to the single server.
+
+- **Pro:** simplest — no app changes, no consistency problems, one source of truth.
+- **Con:** hard ceiling (biggest instance you can buy), cost grows non-linearly, single point
+  of failure, downtime to resize.
+- **Do this first.** For most apps a well-tuned single Postgres goes very far.
+
+### Horizontal scaling (scale out) — more machines
+
+Spread load across multiple servers. Two distinct flavours:
+
+**1. Read replicas (replication).** Primary handles writes; streaming replicas serve reads.
+
+```text
+        writes        ┌─────────┐   WAL    ┌──────────┐  reads
+  app ───────────────►│ PRIMARY │ ───────► │ REPLICA  │◄──────── app
+                      └─────────┘          └──────────┘
+```
+
+- Scales **reads** and gives high availability (promote a replica on failure).
+- Does **not** scale writes — every write still goes through one primary.
+- Replicas are slightly behind → **replication lag** (eventual consistency on reads).
+
+**2. Sharding.** Split the data itself across nodes by a **shard key** (e.g. `user_id`); each
+node owns a slice.
+
+- The only way to scale **writes** beyond one machine.
+- Costly: cross-shard joins/transactions are hard, rebalancing is painful, choosing a good
+  shard key is critical. Native Postgres has no built-in sharding — needs Citus, Vitess-style
+  tooling, or app-level routing.
+
+### Rule of thumb
+
+```text
+slow queries?      → index / tune first
+single box maxed?  → scale UP (vertical)
+read-heavy?        → add read replicas
+write-heavy / too big for one box? → shard (last resort)
+```
+
+Partitioning (above) is **not** scaling — it's still one server. But it's often the first step
+that makes later sharding easier.
