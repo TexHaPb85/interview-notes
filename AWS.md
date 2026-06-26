@@ -216,6 +216,157 @@ All of it lives inside one VPC.
 
 ---
 
+## Real examples from OPUS
+
+This is how the theory above maps to your actual project. Everything runs in **region
+`eu-west-2`** (London), AWS account `291008967373`, and is deployed with **CloudFormation**
+(`.aws/stack-template.yaml`) from GitHub Actions.
+
+> Important correction: OPUS does **not** manage its own EC2 servers for the app — the ECS
+> services use **`LaunchType: FARGATE`** (serverless containers). So "I deployed containers"
+> here really means "ECS Fargate ran my Docker images", not "I ran them on an EC2 box".
+
+### ECS (how OPUS runs containers)
+
+The backend is an **ECS Service** running on **Fargate**. The service keeps tasks alive,
+puts them behind a load balancer, and pulls the image from ECR:
+
+```yaml
+# AWS::ECS::Service  (.aws/stack-template.yaml)
+LaunchType: FARGATE
+DesiredCount: 1                 # keep 1 task running (0 for throwaway PR test envs)
+NetworkConfiguration:
+  AwsvpcConfiguration:
+    SecurityGroups: [ !Ref DefaultSecurityGroup ]
+    Subnets: [ subnet-0c53c5d02e504cea3, subnet-07d9e347eb8181784, ... ]
+LoadBalancers:
+  - TargetGroupArn: !Ref BackendTargetGroup   # ALB routes traffic to the task
+```
+
+The **task definition** is the recipe — and it holds **several containers in one task**
+(this is the sidecar pattern from `Docker.md`):
+
+```yaml
+# AWS::ECS::TaskDefinition
+NetworkMode: awsvpc
+Cpu: 2048      Memory: 16384         # Fargate task size (prod); dev is 512 / 4096
+ContainerDefinitions:
+  - Name: application                # the Spring Boot backend
+    Image: 291008967373.dkr.ecr.eu-west-2.amazonaws.com/horizon:opus-backend-<version>
+    PortMappings: [ 80, 9001 ]
+  - Name: ui-server                  # the nginx frontend
+    Image: .../horizon:opus-ui-<version>
+    PortMappings: [ 81 ]
+    HealthCheck: curl -f http://localhost:81/ || exit 1
+  - Name: log_router                 # the fluent-bit logging sidecar
+    Image: .../horizon:custom-fluent-bit-2
+```
+
+So the OPUS terms line up with the theory: **task definition** = the multi-container recipe,
+**task** = one running copy, **service** = the thing that keeps `DesiredCount` tasks alive
+behind the ALB.
+
+### ECR (the private image registry)
+
+Every image OPUS builds is stored in ECR and tagged with the **release version** (immutable,
+never `:latest`):
+
+```text
+291008967373.dkr.ecr.eu-west-2.amazonaws.com/horizon:opus-backend-1.0.5
+291008967373.dkr.ecr.eu-west-2.amazonaws.com/horizon:opus-ui-1.0.5
+291008967373.dkr.ecr.eu-west-2.amazonaws.com/tests:opus-tester-1.0.5
+```
+
+Pipeline: **Dockerfile → build image → push to ECR → ECS task definition pulls it.**
+
+### RDS (the database)
+
+The backend talks to a managed **PostgreSQL on RDS**. The host comes from config per cluster,
+and the connection pool is bigger in prod:
+
+```text
+OPUS_DB_HOST  = prod-opus.ctlo4lvo0k6t.eu-west-2.rds.amazonaws.com
+OPUS_DB_USER  = opus_app
+OPUS_DB_NAME  = prod-opus-db
+DB_POOL_SIZE  = 50 (prod) / 5 (dev)
+# there is also a FIXME to move to an RDS Proxy:
+#   proxy-...-prod-opus.proxy-....eu-west-2.rds.amazonaws.com
+```
+
+The DB password is **not** in the image or the template — it is read at run time from SSM
+(see Secrets below). The `.amazonaws.com` host confirms RDS is reached over the network only
+(no SSH to the DB box).
+
+### S3 (object storage)
+
+OPUS uses S3 in two ways:
+
+```text
+DATASET_S3_BUCKET = opus-dataset-files-prod   (and ...-dev)   # app data files
+S3_MAVEN_KEY / S3_MAVEN_SECRET                                # S3 as the Maven artifact store
+```
+
+So one bucket holds application dataset files, and another S3 location acts as the private
+**Maven repository** that the CI build reads from.
+
+### VPC + networking (where it all lives)
+
+- **`NetworkMode: awsvpc`** — each Fargate task gets its own network interface inside the
+  VPC, with a private IP in those `subnet-…` IDs (one per Availability Zone).
+- **`DefaultSecurityGroup`** — the firewall around the tasks; only the load balancer's ports
+  are allowed in.
+- **ALB** (Elastic Load Balancer) listener routes by host/path to **target groups**:
+  backend (`:80`), UI (`:81`), test results (`:83`).
+- The **OpenSearch** logging endpoint also lives inside the VPC:
+  `vpc-prod-horizon-2-….eu-west-2.es.amazonaws.com`.
+
+### Secrets — SSM Parameter Store (not in the job list, but real here)
+
+Secrets are injected into the container **at run time** from **SSM Parameter Store**, so
+nothing sensitive is baked into the image:
+
+```yaml
+Secrets:
+  - Name: OPUS_DB_PASSWORD
+    ValueFrom: arn:aws:ssm:eu-west-2:291008967373:parameter/ecs.<cluster>.horizon.horizon-db-password
+```
+
+### Logging — FireLens / fluent-bit → OpenSearch
+
+Each container's logs go through the **fluent-bit sidecar** (`awsfirelens`) straight to
+**OpenSearch (ES)**, indexed per app:
+
+```yaml
+LogConfiguration:
+  LogDriver: awsfirelens
+  Options: { Name: es, Index: "opus-backend", Host: <opensearch-host>, Port: 443 }
+```
+
+### SQS — queues (not in the job list, but real here)
+
+Services are decoupled with **SQS** queues (similar idea to Kafka/MSK, simpler):
+
+```text
+https://sqs.eu-west-2.amazonaws.com/291008967373/link-events-for-opus-prod
+https://sqs.eu-west-2.amazonaws.com/291008967373/received-emails
+```
+
+### Mapping summary
+
+| Service          | In OPUS it is…                                                        |
+|------------------|----------------------------------------------------------------------|
+| **ECS (Fargate)**| runs backend + nginx UI + fluent-bit as one multi-container task      |
+| **ECR**          | private registry: `…/horizon:opus-backend-<version>`                  |
+| **RDS Postgres** | `prod-opus.…rds.amazonaws.com`, pool 50/5, password from SSM          |
+| **S3**           | `opus-dataset-files-prod` data + S3-backed Maven repo                 |
+| **VPC**          | `awsvpc` tasks in private subnets, ALB in front, SG firewall          |
+| **SSM**          | run-time secrets (DB password, API tokens)                           |
+| **OpenSearch**   | central logs via fluent-bit (`awsfirelens`)                          |
+| **SQS**          | event queues between services                                        |
+| **CloudFormation**| the whole stack is deployed as code per environment                 |
+
+---
+
 ## Self-check questions (theory)
 
 Try to answer these out loud before reading any notes.
