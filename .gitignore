@@ -1,0 +1,10 @@
+# Word drafts (source notes, kept locally only)
+*.docx
+~$*.docx
+
+# Claude Code working files
+.claude/
+
+# OS junk
+Thumbs.db
+.DS_Store
