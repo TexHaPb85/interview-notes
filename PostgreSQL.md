@@ -350,9 +350,125 @@ Used to estimate memory; affects whether a sort/hash fits in `work_mem` or spill
 
 ## Transactions & isolation levels
 
+Running transactions in parallel can produce four classic **anomalies**. Each isolation
+level forbids more of them — buying correctness at the cost of concurrency.
+
+### 1. Dirty read — *reads uncommitted data*
+
+One transaction sees changes another has not committed yet (and may roll back).
+
+```text
+ tx1                              tx2
+ ───────────────────────────     ──────────────────────────────
+ UPDATE accounts
+   SET balance = 50 WHERE id=1;
+                                  SELECT balance WHERE id=1;
+                                    → reads 50   (NOT committed!)
+ ROLLBACK;                        → acted on 50, which never existed
+```
+
+PostgreSQL **never** allows this — even its weakest level reads only committed data.
+
+### 2. Non-repeatable read — *the same row changes between two reads*
+
+A row read twice in one transaction returns different values, because another transaction
+updated and committed it in between.
+
+```text
+ tx1                              tx2
+ ───────────────────────────     ──────────────────────────────
+ SELECT balance WHERE id=1;
+   → 100
+                                  UPDATE accounts
+                                    SET balance = 50 WHERE id=1;
+                                  COMMIT;
+ SELECT balance WHERE id=1;
+   → 50   (same row, new value!)
+```
+
+### 3. Phantom read — *the same query returns a different set of rows*
+
+A condition is re-evaluated and **new rows that match it have appeared** (or vanished).
+
+```text
+ tx1                              tx2
+ ───────────────────────────     ──────────────────────────────
+ SELECT count(*)
+   WHERE user=1;   → 1
+                                  INSERT INTO accounts(user, …)
+                                    VALUES (1, …);
+                                  COMMIT;
+ SELECT count(*)
+   WHERE user=1;   → 2   (a "phantom" row appeared)
+```
+
+### 4. Serialization anomaly — *result impossible in any serial order*
+
+Each transaction is individually correct, but their combination is not equal to running
+them one-after-another in *either* order. Classic **write skew** — two on-call doctors:
+
+```text
+ tx1                              tx2
+ ───────────────────────────     ──────────────────────────────
+ SELECT count(*) WHERE            SELECT count(*) WHERE
+   on_call=true;   → 2              on_call=true;   → 2
+ -- both see 2 on call, so each thinks it is safe to leave
+ UPDATE doctors SET on_call=false
+   WHERE name='Alice';
+                                  UPDATE doctors SET on_call=false
+                                    WHERE name='Bob';
+ COMMIT;                          COMMIT;
+ -- result: 0 doctors on call — neither serial order could produce this
+```
+
+### Isolation levels
+
 | Level             | Behavior                                                                                     |
 |-------------------|----------------------------------------------------------------------------------------------|
 | Read Uncommitted  | Reads uncommitted changes from parallel transactions. In PostgreSQL it is silently upgraded to Read Committed. |
-| Read Committed    | Reads only committed data. **Default** in PostgreSQL.                                         |
+| Read Committed    | Reads only committed data. **Default** in PostgreSQL. A new snapshot is taken per statement.  |
 | Repeatable Read   | Snapshot taken once at the START of the first statement, held for the whole transaction.      |
 | Serializable      | Postgres tracks read/write dependencies; on a conflict/anomaly it aborts one transaction with an error (you must retry it). |
+
+### Which level prevents which anomaly
+
+| Anomaly                | Read Committed | Repeatable Read | Serializable |
+|------------------------|----------------|-----------------|--------------|
+| Dirty read             | prevented      | prevented       | prevented    |
+| Non-repeatable read    | possible       | prevented       | prevented    |
+| Phantom read           | possible       | prevented \*    | prevented    |
+| Serialization anomaly  | possible       | possible        | prevented    |
+
+\* Per the SQL standard, Repeatable Read still permits phantoms. PostgreSQL's Repeatable
+Read is implemented as **snapshot isolation**, so it blocks phantoms too — stronger than
+the standard requires.
+
+### PostgreSQL specifics
+
+- **Read Uncommitted = Read Committed** — dirty reads can never happen in PostgreSQL.
+- **Repeatable Read = snapshot isolation** — the whole transaction sees one frozen snapshot;
+  a concurrent write to a row you update raises `could not serialize access` (retry).
+- **Serializable = SSI** (Serializable Snapshot Isolation) — adds dependency tracking on top
+  of snapshots to catch write skew. On conflict it aborts with SQLSTATE `40001`
+  (`serialization_failure`) — the application must **catch and retry** the transaction.
+- Stricter level → fewer anomalies but more aborts/retries and less concurrency.
+
+```sql
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+-- ...
+COMMIT;
+
+-- or for a single transaction already open:
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+```
+
+Retry pattern for Serializable / Repeatable Read (handle `40001`):
+
+```text
+loop:
+  BEGIN ISOLATION LEVEL SERIALIZABLE
+  run statements
+  try COMMIT
+    success → done
+    error 40001 (serialization_failure) → ROLLBACK, retry from top
+```
