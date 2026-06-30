@@ -14,8 +14,10 @@ syntax-highlighted and readable on a phone.
 | [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](AWS.md) | ✅ done |
 | [Docker](Docker.md) | ✅ done |
 | [React / JS / TS](React_JS_TS.md) | ✅ done |
-| [Java memory model](Java-memory-model.md) | ⬜ planned |
-| [SOLID principles](SOLID-principles.md) | ⬜ planned |
+| [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](Microservices-protocols.md) | ✅ done |
+| [Redis vs Redux](Redis-vs-Redux.md) | ✅ done |
+| [Java memory model & JVM tuning](Java-memory-model.md) | ✅ done |
+| [SOLID principles](SOLID-principles.md) | ✅ done |
 
 Legend: ✅ done · 🚧 in progress · ⬜ planned
 

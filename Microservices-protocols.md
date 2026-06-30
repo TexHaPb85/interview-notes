@@ -91,7 +91,8 @@ still meet it in **banking, government, and old enterprise** systems.
 
 ## Thrift
 
-**Apache Thrift** is a **binary RPC framework** (created at Facebook). You define your
+**Apache Thrift** is a **binary RPC** (**R**emote **P**rocedure **C**all) **framework**
+(created at Facebook). You define your
 services and data types once in an **IDL** file (`.thrift`), then Thrift **generates client
 and server code** for many languages (Java, Python, C++, Go, …).
 
@@ -121,10 +122,12 @@ code; less common than gRPC today.
 - **REST** is not a protocol but a **style on top of HTTP**: resources have URLs
   (`/users/5`), HTTP methods mean actions, data is usually JSON. It is the **default
   choice** for most web and public APIs — simple and well understood.
-- **gRPC** is Google's modern **binary RPC** over **HTTP/2**, using **Protobuf** for the
-  message format. Like Thrift, it generates code from a contract and is very fast; it also
-  supports **streaming**. Today gRPC is the usual pick for **internal microservices**, with
-  Thrift seen mostly in older or Facebook-influenced stacks.
+- **gRPC** is Google's modern **binary RPC** (**R**emote **P**rocedure **C**all) over
+  **HTTP/2**, using **Protobuf** for the message format. It is essentially an **analog of
+  Thrift**: like Thrift, it generates client + server code from a contract (IDL) and is
+  very fast; unlike Thrift it runs on HTTP/2 and also supports **streaming**. Today gRPC is
+  the usual pick for **internal microservices**, with Thrift seen mostly in older or
+  Facebook-influenced stacks.
 
 ---
 
