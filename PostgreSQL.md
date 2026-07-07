@@ -443,6 +443,26 @@ them one-after-another in *either* order. Classic **write skew** — two on-call
 Read is implemented as **snapshot isolation**, so it blocks phantoms too — stronger than
 the standard requires.
 
+### What happens when an anomaly occurs?
+
+There are **two** possible behaviors, depending on the level:
+
+- **Lower level (Read Committed) → the anomaly is ignored.** It just happens silently — no
+  error, no retry. You simply read newer/older data than you expected. Preventing it is
+  *your* job (raise the level, or lock rows with `SELECT ... FOR UPDATE`).
+- **Higher levels (Repeatable Read, Serializable) → Postgres refuses the anomaly.** When a
+  concurrent change would break the guarantee, it **aborts** one transaction with an error.
+  The transaction is already rolled back — the **application must catch it and retry** the
+  whole transaction. Postgres never retries by itself.
+
+| Level            | On a conflicting anomaly                          |
+|------------------|---------------------------------------------------|
+| Read Committed   | **ignored** — happens silently, no error          |
+| Repeatable Read  | **error `40001`** on a conflicting update → retry |
+| Serializable     | **error `40001`** on write skew / dependency → retry |
+
+> One line: **low level = ignore the anomaly; high level = throw `40001` and you retry.**
+
 ### PostgreSQL specifics
 
 - **Read Uncommitted = Read Committed** — dirty reads can never happen in PostgreSQL.
@@ -537,13 +557,33 @@ Spread load across multiple servers. Two distinct flavours:
 - Does **not** scale writes — every write still goes through one primary.
 - Replicas are slightly behind → **replication lag** (eventual consistency on reads).
 
-**2. Sharding.** Split the data itself across nodes by a **shard key** (e.g. `user_id`); each
-node owns a slice.
+**2. Sharding.** Split the **data itself** across several servers by a **shard key** (for
+example `user_id`). Each server (a **shard**) keeps only **part** of the rows.
 
-- The only way to scale **writes** beyond one machine.
-- Costly: cross-shard joins/transactions are hard, rebalancing is painful, choosing a good
-  shard key is critical. Native Postgres has no built-in sharding — needs Citus, Vitess-style
-  tooling, or app-level routing.
+```text
+  shard by user_id:
+  ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+  │   Server A     │   │   Server B     │   │   Server C     │
+  │  users 1 – 1M  │   │  users 1M – 2M │   │  users 2M – 3M │
+  └────────────────┘   └────────────────┘   └────────────────┘
+  app reads the user_id → sends the query to the right server
+```
+
+Simple way to see it: **partitioning splits a table on ONE server; sharding splits the
+data across MANY servers.** Sharding is like "partitioning across different computers."
+
+- It is the **only** way to scale **writes** past one machine — each shard takes its own
+  writes at the same time.
+- **When is it used?** Only for very big systems that a single server can no longer handle,
+  for example:
+  - a social network with **billions** of users / posts,
+  - chat apps storing huge numbers of messages,
+  - IoT / sensor data with a massive, constant write load.
+- **Why it is costly:** a query that needs data from many shards (a join, or
+  `COUNT(*)` over everything) becomes slow and complex; moving rows when you add a new
+  server (**rebalancing**) is painful; and choosing a good shard key is critical (a bad key
+  sends most traffic to one shard). Plain PostgreSQL has **no built-in sharding** — you need
+  a tool like **Citus**, or routing logic in the application code.
 
 ### Rule of thumb
 
