@@ -18,6 +18,7 @@ syntax-highlighted and readable on a phone.
 | [Redis vs Redux](Redis-vs-Redux.md) | ✅ done |
 | [Java memory model & JVM tuning](Java-memory-model.md) | ✅ done |
 | [SOLID principles](SOLID-principles.md) | ✅ done |
+| [CI/CD pipeline (Docker + AWS + GitHub Actions)](CI-CD-pipeline.md) | ✅ done |
 
 Legend: ✅ done · 🚧 in progress · ⬜ planned
 
