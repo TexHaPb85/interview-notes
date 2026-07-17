@@ -2,16 +2,81 @@
 
 ## Hooks
 
-| # | Hook          | What it gives you                                                        |
-|---|---------------|--------------------------------------------------------------------------|
-| 1 | `useState`    | local state variable                                                     |
-| 2 | `useEffect`   | run a function depending on state variables passed in the deps array     |
-| 3 | `useContext`  | global context values (no props drilling)                                |
-| 4 | `useReducer`  | complex state logic (alternative to Redux for local state)              |
-| 5 | `useMemo`     | save expensive calculations                                              |
-| 6 | `useCallback` | memoize functions to avoid re-renders                                    |
-| 7 | `useRef`      | store mutable values or access DOM elements                              |
+| # | Hook          | What it gives you                                                         |
+|---|---------------|---------------------------------------------------------------------------|
+| 1 | `useState`    | local state variable in a React component that trigers rerender on update |
+| 2 | `useEffect`   | run a function depending on state variables passed in the deps array      |
+| 3 | `useContext`  | global context values (no props drilling)                                 |
+| 4 | `useReducer`  | complex state logic (alternative to Redux for local state)                |
+| 5 | `useMemo`     | save expensive calculations                                               |
+| 6 | `useCallback` | memoize functions to avoid re-renders                                     |
+| 7 | `useRef`      | store mutable values or access DOM elements                               |
 
+---
+
+## 1. useState — local state variable
+
+**Problem:** Standard variables do not trigger a UI update when they change. If you update a `let count = 0` variable, 
+React doesn't know it needs to re-render the screen.
+
+**Solution:** `useState` gives you a variable that, when updated via its setter function, 
+tells React to re-render the component with the new value. 
+
+Hook `useState` stores state inside a single React component.
+
+```tsx
+import React, { useState } from "react";
+
+const Counter = () => {
+  const [count, setCount] = useState(0); // [value, setter]
+
+  return (
+          <div>
+            <p>Count: {count}</p>
+            {/* Calling setCount triggers a re-render */}
+            <button onClick={() => setCount(count + 1)}>Increment</button>
+          </div>
+  );
+};
+```
+
+## 2. useEffect — run side effects
+**Problem:** You need to do something outside of React's normal rendering flow, 
+like fetching data from an API, subscribing to an event, or manually changing the DOM. 
+If you put this logic directly in the component body, it will run on every single render,
+causing infinite loops or performance nightmares.
+
+**Solution:** useEffect runs your code after the component renders, and the dependency array [] controls exactly when it runs again.
+
+```tsx
+import React, { useState, useEffect } from "react";
+
+interface DataTableProps<T> {
+  columns: Column<T>[];
+  fetchData: (page?: number, size?: number, cancelToken?: CancelToken) => Promise<PageResponse<T>>;
+  onEdit?: (item: T) => Promise<void>;
+  pageSize?: number;
+}
+
+export function DataTable<T extends { id: number }>({
+                                                      columns,
+                                                      fetchData,
+                                                      onEdit,
+                                                      pageSize = 10,
+                                                    }: DataTableProps<T>) {
+  const [data, setData] = useState<T[]>([]);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editedItem, setEditedItem] = useState<Partial<T>>({});
+
+  useEffect(() => {
+    fetchData(page, pageSize).then(res => {
+      setData(res.content);
+      setTotal(res.totalElements);
+    });
+  }, [page, pageSize]);
+```
 ---
 
 ## useContext — share data without props drilling

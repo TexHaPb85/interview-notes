@@ -1,0 +1,20 @@
+Questions & answers:
+
+/JS base
+How to determine variable in javascript?
+What is the difference between var, let and const?
+Arrow functions, what is it? where is used?
+if we use this. in arrow function and pass it as parameter in another component to what "this." refers?
+
+/CSS base
+which tools do you know to align element in the center of the page?
+specificity in css, what is it? what is it about? (weight of rules)
+
+/React
+What is React? (Library)
+What is Virtual Dom? (copy of real DOM)
+What is hooks in React? How it can be used?
+Tell about useState.
+Tell about useEffect.
+How can I implement useEffect in the way so it executed only once?
+What is Redux?
