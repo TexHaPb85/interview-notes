@@ -1,0 +1,92 @@
+/API design, REST standarts:
+can you design rest API for "users" resource?
+- /api/v1/users //without verbs (operation word in the end like "add", "delete", "get" etc), action chousen by http method
+now we should additionally create API for pets with one-to-many relationship with users(1 user -> many pets), design create api for one pet?
+- [POST] /api/v1/pets (CreatePetRequestDto{userId, petname, petField1, petField2... etc.}) // wrong according to interviewer(check how to design create entity with one-to-many according to REST standarts)
+What is idempotence? which http methods are idempotent according to REST standarts?
+- all except post
+How to mare POST method (eg creation) idempotent?
+- 1. compare new object with created in DB by unique fields. 2. create idempotent key, eg based on hash and in case of colisions compare with every entry
+
+/architecture
+Main advendure of microservices?
+-1. horizontal scaling is cheaper and more flexible then vertical scaling, many servers with smaller resources are cheaper then one expencive server with huge RAM and CPU;
+-2. one failed microservice != whole system failed, extend resources for one microservice easier them vertical scaling for whole system
+-3. easier to develop for many big teams
+What is event sourcing?(as architecture style)
+-- dont know
+
+/java
+SOLID, explain L?
+- Liskov substitution, subclasses should complement logic of parentclasses, not replace it. We should be able to replace parent class with subclass with min code change.
+How to create immutable class?
++
+synchronized?
+- block concurrent access to some resource in scope of block or in method, if method marked as synchronized - the resource is this.(1 instance of class)
+what if static synchronized method?
+- then blocked for all instances of the class.
+which thread-safe collections do you know?
+- ConcurrentHashMap, CopyOnWriteArrayList, BlockingQueue.
+what is the difference between then and Collection.synchronized(new ArrayList())?
+- Collection.synchronized(new ArrayList())? use pesimistic locking while thread-safe collections - optimistic locks.
+volotile?
+- compiler don`t cache marked variable in core of processor(it taken directly from RAM) and don`t do any optimization with it during compilation, it prevents set of concurrensy problems.
+Does it make sence to mark reference type as volotile?
+-- Yes, if your ref is overriden to some another heap object in one thread, another thread may not see this change due to caching.
+Provide example of problems for reference and primitive types without volotile that will be fixed by it?
+--
+equals & hashCode contract?
+- o1.equals(o2) => o1.hashCode() == o2.hashCode();
+- o1.hashCode() == o2.hashCode() NOT => o1.equals(o2);
+
+/spring
+how to create bean?
+- xml, class annotations(@Service, @Repository, @Component), @Bean method in @Configurational class,
+- also created by starters, starters by condition scanning classpath, so we can create class, mark it with contitional//- need explanation? possible?
+What is spring Actuator?
+-- lib that exposes health API.
+What is N+1 problem?
+- we have 1 user => many pets, while selecting few users we will select pets for every of them in separate requests instead of selecting all in one "select pets.. where user_id in (..)"//yes? is it N+1 example?
+
+
+/security
+What is JWT token?
+- token that passed for authintification, consists from 3 parts: header, body,signature and...
+What is the difference between JWT token and some random token we could also use for auth? what is main advetage of JWT?
+- It is not mandatory to call DB to validate JWT token, it can be validated in the microservice where we send the request, no need to go to any other service, so validation is fast.
+- 3 part - signature can be added to services and validated write there for every request
+
+/DB
+adv and disadv of indexes in DB?
+- faster select, longer insert, update, delete.
+HAVING vs WHERE?
+- WHERE comes first, HAVING after it. HAVING for grouped columns conditions eg "HAVING avg(deposit) > 5"
+You have composite index for columns A, B, C (in same order), which selects will be optimized by this index?
+- only those that contains A column in select query.
+
+/Testing
+You have service, you need to write unit tests for its method, how much unit tests should you write? + How sonar lint counts test coverege?
+- you should test every branch scenario of your code logic, every if, switch/case, etc. every block of code should be covered.
+Which DB would you use for your tests?
+- the easiest way is in memory DB, like H2, but better to use conteinerized in docker DB of same type as in real project. //how to do it?
+
+/AWS
+which service is responsible for storing images?
+--
+
+/docker
+image vs container?
+- image like class, container like class object
+- run image == create container - same action???
+- to run container vargand machine should pull image from somewhere, so there should be some centralized storage (docker registry) eg - Nexus.
+
+docker volume?
+-- set in the end of docker file, but don`t knwo what for...
+terraform?
+docker ps?
+-- see statuses of all running containers?
+
+/CI CD
+how did your CI/CD process worked?
+- passing tests&sonar on gitlab, after passing it - create jar for the branch on Nexus,
+- during "./apps.py up' command vagrand machine pulled corresponding image from Nexus according to branch and hash and run the created container
