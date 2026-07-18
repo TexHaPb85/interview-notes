@@ -1,0 +1,118 @@
+Questions & answers:
+
+/JS base
+How to determine variable in javascript?
+What is the difference between var, let and const?
+Arrow functions, what is it? where is used?
+if we use this. in arrow function and pass it as parameter in another component to what "this." refers?
+
+/CSS base
+which tools do you know to align element in the center of the page?
+specificity in css, what is it? what is it about? (weight of rules)
+
+/React
+What is React? (Library)
+What is Virtual Dom? (copy of real DOM)
+What is hooks in React? How it can be used?
+Tell about useState.
+Tell about useEffect.
+How can I implement useEffect in the way so it executed only once?
+What is Redux?
+
+/FE practical task: you have
+const words = ["word1", "word2", "word3"]
+
+const App = () => {
+    return(
+        <div> result must be here </div>
+    );
+}
+
+ReactDOM.render(<App />);
+document.getElementById("root");
+
+/Java
+What is SOLID? Describe every letter.
+GOF patterns. Which patterns did you see on your projects? Maybe you implemented some patterns?
+-Builders, Abstract Factory, Factory method, singlton, prototype, proxy, decorator(for extentions including ext points)
+What is the difference between decorator and proxy?
+-A Decorator requires an instance of the interface it is wrapping, while a Proxy does not require such an instance.
+-A Proxy can receive an instance, but is also allowed to create this instance itself.
+How to create immutable object? (create copy of passed objects, or such objects also should be immutable)
+What is marker interface?
+What is Optional? When do we use it?
+What happens when we pass Optional as argument for methods?
+Exceptions hierarchy?
+When should we use checked and unchecked exception? same about our own exceptions?
+try-catch-finally?
+Collections hierarchy? ArrayList vs LinkedList?
+Functional interfaces? Interface with one default method can be functional?(no) Examples of Functional interfaces in java?
+-@FunctionalInterface should contain one normal method and any number of default methods
+Stream API? how does it work? what is order of methods calling? .map() vs .flatMap()?
+-methods processes element by element, not all elements in method,
+-while second element processed in first method second can be already in method 2 or 3 (see examples/StreamApiCallingOrder.java code 1)
+-if there are cutting terminal operations(findFirst(), findAny(), limit()) - stream will process only needed amount of elements  (see examples/StreamApiCallingOrder.java code 2)
+Can stream contain more then 1 terminal operation?
+-no, one strean = one terminal operator
+
+/Spring
+Inversion of Control vs Dependency Injection?
+- DI is implementation of IoC in Spring. Main idea - delegate objects creation of logic classes to container that will manage it(beans)
+How to inject specific bean by its name?
+- @Qualifier
+Why injecting via constructor is recommended way? why better then @Autowired or via setter?
+- field can be final and cannot later be changed by mistake,
+- object is created ONLY if all dependencies are ready,
+- no reflection search
+- Spring throws error at startup if there is circular dependency with constructor injection. With setter/field injection, Spring can sometimes "solve" circular dependency using proxy — but this hides real design problem.
+Can you inject list of beans, like List<Validator> validators;?
+- Yes, spring will automatically find all implementations of Validator interface and inject them in this list.
+Cycle dependency, what is it? how to solve it?
+- ServiceA has dependency(injected bean field) - ServiceB and ServiceB has dependency to ServiceA.
+- Best way - redesign the app to avoid such Cycle dependency
+- use ObjectProvider<ServiceB> serviceBProvider; and ServiceB serviceB = serviceBProvider.getObject();
+- @Lazy ServiceB serviceB - pring creates proxy first, real bean loaded only when actually used.
+- inject via setters or @Autowired // works but hides design problem
+
+/JPA
+What is JPA?
+- JPA = specification (just a set of rules, written as Java interfaces and annotations), Hibernate  implements it with EntityManager;
+What minimal actions needed to create @Entity class?
+- mark by @Entity, add @Id, add default constructor
+Can we add field to the entity but not store it in DB?
+- yes, with @Transient we should describe method how to take this field from other fields
+N+1 problem? How to solve?
+- when we select 100 users with 1 request and later select List<Order> for every of this user separately instead of fetching it in 1 request
+- JPQL @Query("SELECT u FROM User u JOIN FETCH u.orders"),
+- queryDSl(using .join(secondTable)),
+- @EntityGraph(attributePaths = {"orders"}) List<User> findAll();
+
+/API
+What is REST?
+Describe API URIs for "users" resource.
+What is idempotence?
+
+/Architecture
+Microservices vs Monolith, what are key advantages and disadvantages?
+- Microservices: reliable(safe), distributed resources, if some service use to much resource it will killed but whole system, horizontal scale is cheaper then vertical.
+- Monolith: faster, no need to set up communication among services, easier to deploy and run.
+
+/DB
+What is transaction?
+Which isolation levels do you know?
+Which anomaly resolved by repeatable read?
+- Non repeatable read :)
+
+/Unit testing
+@BeforeAll vs @BeforeEach?
+- @BeforeAll once ib the beginning, @BeforeEach before every @Test
+@Disabled("waiting for bug fix JIRA-123") or @Ignore(same but in Junit 4 and earlier)?
+- mark test to temporary ignore it
+Parametrised tests?
+- one test body, different input params and excepted output
+What is Mockito? Spy vs Mock?
+- Mockito = library for creating fake objects in tests.
+- Mockito.mock(List.class); fake object base on class that do nothing on calling any its methods, unless we wrote when(mockList.size()).thenReturn(100);
+- Mockito.spy(new ArrayList<>()); real object, even if we have when(spyList.size()).thenReturn(100); if first execute real logic, then override it with fake
+
+
