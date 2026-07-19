@@ -2,7 +2,8 @@
 
 ## 1. OAuth 2.0
 
-OAuth 2.0 is an **authorization** framework (not authentication by itself). Its main idea: a client gets a token from an Authorization Server, without ever handling the user's actual password — it gets delegated, scoped access to a resource on the user's behalf.
+OAuth 2.0 is an authorization protocol. Its main idea: a client gets a token from an Authorization Server(eg. Keycloak, Google, AWS Cognito or your own custom server), 
+without ever handling the user's actual password — it gets delegated, scoped access to a resource on the user's behalf.
 
 Key roles:
 - **Resource Owner** — the user.
@@ -12,15 +13,102 @@ Key roles:
 
 ### Grant types (flows)
 
+A grant type = a way for the client app to get an access token. Different situation → different way to get the token. OAuth 2.0 defines a few standard grant types for different cases.
+
 | Grant type | Use case | Notes |
 |---|---|---|
-| Authorization Code (+ PKCE) | Web apps, SPAs, mobile apps | Standard, most secure, used for user login |
+| Authorization Code (+ PKCE) | Apps with a user — web app, SPA (React/Angular app in browser), mobile app | Standard, most secure, used for user login |
 | Client Credentials | Service-to-service (no user involved) | Common between microservices |
 | Refresh Token | Getting a new access token without re-login | Used alongside other flows |
 | Resource Owner Password Credentials | Legacy / fully trusted first-party apps | Deprecated — app sees the user's password, avoid |
 | Implicit | (deprecated) token returned in URL fragment | Replaced by Authorization Code + PKCE |
 
+#### Authorization Code (+ PKCE)
+The user logs in on Keycloak's own page, not inside your app. Your app first gets a short-lived **code**, then trades it for a real token in a separate, server-to-server call. Full step-by-step flow is diagrammed below.
+```
+Example: user clicks "Login" in a React app -> redirected to Keycloak's login page
+-> logs in there -> app receives a code -> app exchanges it for a token
+```
+
+#### Client Credentials
+No user involved at all — the service itself is the identity. It has its own `client_id` + `client_secret`, and gets a token that represents *the service*, not a person.
+```
+POST /token
+client_id=order-service
+client_secret=xxx
+grant_type=client_credentials
+
+-> { access_token: "...", expires_in: 300 }
+```
+Example: `order-service` calls `inventory-service` on a schedule — no user triggered this call.
+
+#### Refresh Token
+Gets a new access token once the old one expires, without asking the user to log in again.
+```
+POST /token
+grant_type=refresh_token
+refresh_token=xyz789
+
+-> { access_token: "new_token...", refresh_token: "new_refresh..." }
+```
+Example: access token expires after 5 minutes; the app silently requests a new one in the background — the user stays logged in and notices nothing.
+
+#### Resource Owner Password Credentials — deprecated
+The app itself asks the user for username + password, then sends them directly to the Authorization Server.
+```
+POST /token
+grant_type=password
+username=john
+password=secret123
+```
+Why avoid it: your app sees the real password — this defeats the whole purpose of OAuth2 (no MFA/2FA, no SSO, no consent screen). Kept around mostly for legacy systems that can't be changed yet.
+
+#### Implicit — deprecated
+Skipped the "code" step entirely — the token came back directly in the URL, right after login (used before PKCE existed, mainly for SPAs).
+```
+GET /auth?response_type=token&client_id=myapp&redirect_uri=...
+
+-> redirect to https://myapp.com/callback#access_token=abc123&expires_in=3600
+```
+Why deprecated: the token sits in the URL fragment — can leak via browser history, server logs, or a malicious script on the page. No refresh token support either. Authorization Code + PKCE replaced it.
+
 **PKCE** (Proof Key for Code Exchange) — required for public clients (SPA, mobile) that can't safely store a client secret. The client generates a random `code_verifier`, sends its hash (`code_challenge`) with the initial redirect, then sends the raw `code_verifier` when exchanging the code. This proves the code-exchange request comes from the same client that started the flow — protects against authorization-code interception.
+
+### `client_id` and `client_secret`
+
+**`client_id`** — public identifier for your app. Identifies *which app* is talking to the Authorization Server. Not secret — visible in URLs, browser network tab, logs. Similar to a username, but for an application, not a person.
+
+**`client_secret`** — private password for your app. Proves the app is really who it claims to be. Used when exchanging a code for a token, or for the `client_credentials` grant. Must stay server-side only, never in a browser or mobile app bundle.
+
+Both are set up in Keycloak when you register a client: Realm → Clients → create client → `client_id` (you choose it) + `client_secret` (Keycloak generates it, on the "Credentials" tab).
+
+Typical Spring Boot config (`application.yml`):
+```yaml
+client:
+  client-id: proxima
+  client-secret: fe057b1348d23005c2da88adfe9686ba42df80d0
+```
+
+#### Confidential client vs public client
+
+| | Confidential client | Public client |
+|---|---|---|
+| Has `client_secret`? | Yes | No |
+| Example | Backend app, another microservice | SPA (React app in browser), mobile app |
+| Why | Runs on your server — secret stays hidden | Runs on user's device — anyone can extract the secret from the code |
+| Protection instead of secret | — | PKCE |
+
+#### Where they're used
+```
+POST /token
+grant_type=authorization_code
+code=abc123
+client_id=proxima
+client_secret=fe057b1348d23005c2da88adfe9686ba42df80d0
+```
+Without a correct `client_secret`, Keycloak refuses to exchange the code for a token — even with a valid, stolen `code`.
+
+**Short summary:** `client_id` = who's asking (public). `client_secret` = proof it's really them (private, backend-only). Public clients (SPA/mobile) skip the secret and use PKCE instead.
 
 ### Authorization Code Flow
 
@@ -28,12 +116,24 @@ Key roles:
 
 1. User clicks **Login** in the Client App.
 2. Client redirects the browser to Keycloak's login page.
-3–4. User authenticates **directly on Keycloak's page** — the Client App never sees the password.
+3. User enters creds
+4. User authenticates **directly on Keycloak's page** — the Client App never sees the password.
 5. Keycloak redirects back to the Client App with a short-lived **authorization code**.
 6. Client App exchanges the code (server-to-server call, + `client_secret`) for tokens.
 7. Keycloak returns an **access_token** (+ refresh_token).
 8. Client App calls the Resource Server with `Authorization: Bearer <access_token>`.
 9. Resource Server validates the token and returns data.
+
+After passing these 9 steps for eg Authorization Code (+ PKCE)
+1. FE app(React) get <access_token> and add Authorization: Bearer <access_token> for every request of this user
+2. BE validates the token locally, using math (signature check), not a network call:
+3. Parse token: header.payload.signature
+4. Get Keycloak's public key (already cached in memory, fetched once earlier)
+5. Verify signature = SHA256/RSA check using cached public key   <- no network call
+6. Check payload.exp > now()
+7. Check payload.aud == "my-service"
+8. If all pass -> request allowed, roles read from payload.realm_access.roles
+
 
 ## 2. OpenID Connect (OIDC)
 
@@ -58,7 +158,9 @@ eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0IiwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbInVzZXI
 - **Payload** — claims: `sub` (user id), `exp` (expiry), `iss` (issuer), `aud` (audience), plus custom claims like roles.
 - **Signature** — proves the token wasn't tampered with.
 
-⚠️ The payload is only **base64-encoded, not encrypted** — anyone can decode and read it. Never put secrets in a JWT payload.
+![JWT](jwt.jpg)
+
+⚠️ The **Header** and **Payload** is only **base64-encoded, not encrypted** — anyone can decode and read it. Never put secrets there.
 
 ### Symmetric vs asymmetric signing
 
@@ -89,7 +191,7 @@ This is why **RS256** is the standard for microservices with Keycloak: services 
 
 ## 4. Keycloak
 
-An open-source **Identity and Access Management (IAM)** server implementing OAuth 2.0 and OIDC — the centralized Authorization Server / Identity Provider for a system of microservices.
+An open-source **Identity and Access Management (IAM)** server implementing OAuth 2.0 and OpenID Connect — the centralized Authorization Server / Identity Provider for a system of microservices.
 
 | Concept | Meaning |
 |---|---|
@@ -133,7 +235,7 @@ An open-source **Identity and Access Management (IAM)** server implementing OAut
 ## Control questions (self-check)
 
 1. Is OAuth 2.0 an authentication protocol or an authorization protocol? What does OpenID Connect add?
--
+- More authentication, but 
 2. Why shouldn't the Resource Owner Password Credentials grant be used in modern apps?
 -
 3. What's the difference between the ID token and the access token in OIDC?

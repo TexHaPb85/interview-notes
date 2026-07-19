@@ -1,0 +1,40 @@
+/security
+JWT token structure?
+OAuth2? how does it work?
+Grant type(Flow) of getting token?
+ClientId and ClientSecret?
+
+/Multithreading
+Happens before?
+- we see all changes before it will be gotten
+
+55.30
+/Spring
+Spring vs Spring Boot?
+- Spring Boot extends spring, provides:
+- autoconfiguration @SpringBootApplication contains @ConponentScan, @EnableAutoConfiguration, @Configuration
+- autoconfiguration when you add jpa or security starters it automatically create needed beans with some default configuration
+- dependency management
+- server container (tomcat, jetty etc)
+- we still able to override and configure everything ourself, but in general spring boot show us "recommended" way how to configure the app, while in pure spring we do everything ourself
+Imagine we created our own starter and want to create some set of beans every time when we add it to project, how this mechanism work? How spring understands which classes should be created for this starter?
+- Register the class name(eg "MyAutoConfiguration") in AutoConfiguration.imports,
+- Mark the class "MyAutoConfiguration" @AutoConfiguration (or @Configuration),
+- define there beans with @Bean methods add @ConditionalOn... on the to control if each bean gets created
+If you have separate application.properties file for tests will test context use only values from there? or this file will extend main application.properties file?
+-src/main/resources/application.properties   -> ignored during tests!
+-src/test/resources/application.properties   -> used, and ONLY this one
+-src/main/resources/application.properties        // base config
+-src/test/resources/application-test.properties    //(with @ActiveProfiles("test")) test overrides and compliment base file
+Which propagations do you know?
+- REQUIRED, REQUIRED_NEW, SUPPORTED(in scope of existing tx or without tx), NOT_SUPPORTED(suspend the current tx if one exists),
+- NEVER(Execute non-transactionally, throw an exception if a transaction exists), NESTED(nasted tx if existist)
+
+/AWS
+How did you work with AWS?
+-
+
+/JS
+event loop?
+- allows to imitate multithreading in JS, resolving part of every task.
+
