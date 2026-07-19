@@ -44,7 +44,7 @@ how to create bean?
 - xml, class annotations(@Service, @Repository, @Component), @Bean method in @Configurational class,
 - also created by starters, starters by condition scanning classpath, so we can create class, mark it with contitional//- need explanation? possible?
 What is spring Actuator?
--- lib that exposes health API.
+-- lib that exposes API for checking state of the APP(up/down, RAM/CPU, Thread dump/heap dump)
 What is N+1 problem?
 - we have 1 user => many pets, while selecting few users we will select pets for every of them in separate requests instead of selecting all in one "select pets.. where user_id in (..)"//yes? is it N+1 example?
 
