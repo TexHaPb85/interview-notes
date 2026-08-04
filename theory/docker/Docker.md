@@ -144,7 +144,7 @@ process running in the foreground, or it exits immediately.**
 ```dockerfile
 FROM mcr.microsoft.com/playwright:focal
 WORKDIR /usr/src/app
-COPY . .                                 # copy the test project in
+COPY .. .                                 # copy the test project in
 RUN npm install                          # install deps at build time
 RUN npx playwright install               # install browsers
 EXPOSE 83 9323

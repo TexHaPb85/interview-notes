@@ -12,7 +12,7 @@ syntax-highlighted and readable on a phone.
 | [PostgreSQL in 1 hour](theory/PostgreSQL.md) | ✅ done |
 | [Java multithreading](Java%20multithreading.md) | ✅ done |
 | [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](theory/AWS.md) | ✅ done |
-| [Docker](theory/Docker.md) | ✅ done |
+| [Docker](theory/docker/Docker.md) | ✅ done |
 | [React / JS / TS](theory/React_JS_TS.md) | ✅ done |
 | [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/Microservices-protocols.md) | ✅ done |
 | [Redis vs Redux](theory/Redis-vs-Redux.md) | ✅ done |
