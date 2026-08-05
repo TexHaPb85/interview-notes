@@ -29,20 +29,36 @@ Container:  App + libs (shares host kernel) ──► light, seconds to boot
 
 ---
 
-## The three core words
 
-| Word          | What it is                                         | Analogy            |
-|---------------|----------------------------------------------------|--------------------|
-| **Dockerfile**| A text recipe of build steps.                      | The recipe         |
-| **Image**     | The built, frozen result of the recipe.            | The cake (frozen)  |
-| **Container** | A running copy of an image.                        | The cake, served   |
+## The three core words (and a fourth)
+
+| Word           | What it is                                         | Analogy              |
+|----------------|-----------------------------------------------------|-----------------------|
+| **Dockerfile** | A text recipe of build steps.                       | The recipe            |
+| **Image**      | The built, frozen result of the recipe.              | The cake (frozen)     |
+| **Container**  | A running copy of an image.                          | The cake, served      |
+| **Registry**   | A store for images, you push/pull them.              | The bakery shelf      |
 
 One image → many containers. You build the image once, then run as many containers from it
 as you want.
 
-A fourth word: **Registry** — a store for images (like Git for code). Examples: **Docker
-Hub** (public) and **AWS ECR** (private). OPUS pushes its images to ECR:
-`291008967373.dkr.ecr.eu-west-2.amazonaws.com/horizon:opus-backend-<version>`.
+**Registry** — a store for images (like Git for code). Examples:
+
+- **Docker Hub** — public, default registry.
+- **AWS ECR** — private, AWS-hosted.
+- **Google Artifact Registry** — private, GCP-hosted (old name: GCR).
+- **Azure Container Registry (ACR)** — private, Azure-hosted.
+- **GitHub Container Registry (GHCR)** — tied to GitHub repos.
+- **Nexus** — self-hosted, can store images too.
+
+OPUS pushes its images to ECR:
+`291008967373.dkr.ecr.eu-west-2.amazonaws.com/horizon:opus-backend-<version>`
+
+**Can Nexus store Docker images?**
+Yes. Nexus supports different repo *formats*: `maven2` (for jars), `npm`, `docker`, etc.
+Jars go to a maven2-type repo. Images go to a separate docker-type repo. Same Nexus
+server, but different repo type — so it's different storage than your jars, just hosted
+on the same tool.
 
 ---
 
