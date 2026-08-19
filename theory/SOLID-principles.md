@@ -3,28 +3,34 @@
 ## What is SOLID? Why do we need it?
 
 **SOLID** is a set of five principles recommended to follow during software development.
-They keep code **easy to read, change, and extend**, and stop classes from turning into
+
+Following these principles keep code **easy to read, change, and extend**, make code navigation much easier,
+significantly reduces number of potential bugs and stop classes from turning into
 huge, tangled files that nobody wants to touch.
 
-| Letter | Principle                     | One-line idea                                              |
-|--------|-------------------------------|------------------------------------------------------------|
-| **S**  | Single Responsibility         | one class = one job                                        |
-| **O**  | Open/Closed                   | open for extension, closed for modification                |
-| **L**  | Liskov Substitution           | a subclass must work anywhere its parent works             |
-| **I**  | Interface Segregation         | don't force a class to implement methods it doesn't use    |
-| **D**  | Dependency Inversion          | depend on abstractions, not concrete classes               |
+| Letter | Principle                     | One-line idea                                           |
+|--------|-------------------------------|---------------------------------------------------------|
+| **S**  | Single Responsibility         | one class = one functionality                           |
+| **O**  | Open/Closed                   | open for extension, closed for modification             |
+| **L**  | Liskov Substitution           | a subclass must work anywhere its parent works          |
+| **I**  | Interface Segregation         | don't force a class to implement methods it doesn't use |
+| **D**  | Dependency Inversion          | everything depend on abstractions, not concrete classes |
 
 ---
 
 ## S — Single Responsibility
-
-> **One class should describe only one functionality** (have only one reason to change).
+> **One class should describe only one functionality logically follows from its name**
 
 **Violated when** a class grows into hundreds of lines (e.g. 500+) and becomes hard to
 navigate and read, usually because new methods were added without thinking, just to finish
 tasks ASAP.
 
-**Fix:** split the big class by responsibility. For example, one class handles
+**Fix:** split the big class:
+- by functionality;
+- by logical layers;
+
+
+For example, one class handles
 **user-modification** operations in the DB, another handles **user-searching** operations.
 If a split class later grows too big again, split it again.
 
@@ -63,34 +69,103 @@ class UserSearchingService {      // reads from DB
 
 ## O — Open/Closed
 
-> **Program entities (classes) should be open for extension but closed for modification.**
+> **Code should be open for extension but closed(avoided) for modification.**
 
-**Violated when** you modify existing methods that are already used in several places —
-unless the task really requires changing the business logic in *all* of those places.
+**Violated when** you modify existing code logic that`s already used in several places —
+unless the task really requires changing the business logic in *all* of those places. 
 
-**Fix:** if the logic change is **not** wanted everywhere, **extend** the existing class
-and put your change in the subclass (or a new implementation), then use that extension only
-where you need it. The classic, clean way is **polymorphism** (an interface + several
-implementations).
+
+*Actually it is violated often but still we should avoid such modifications.*
+
+**Fix:** 
+
+If the logic change is **not** required everywhere where method used, then - **extend** the existing class
+and put your change in the subclass (or a new implementation), or wrap the method with another one and extend the logic,
+then use that extension only in place where you need it.
+
+If you see that in some place logic will be updated and code will growth with similar extensions - 
+design this place in the way new implementation for new logical case.
 
 ```java
-// ❌ Must edit this method every time a new type appears (risky — touches working code)
-double price(String type, double base) {
-    if (type.equals("regular")) return base;
-    if (type.equals("vip"))     return base * 0.9;
-    return base;
+public record UserCreationRequest(String email, String username, String password) {}
+
+class UserService {
+    public User createUser(UserCreationRequest request) { //used in 3+ places in project
+        User user = new User(request.username(), request.email(), request.password());
+        return userRepository.save(user);
+    }
 }
+
+/**
+ * In case if we need to extend logic in ONE place where the method used - we wrap or extend and override it for one
+ * particular usage without affecting other places, instead of modifying the method itself.
+ */
+public User createIfNotExists(UserCreationRequest request) { 
+    boolean suchUserAlreadyExists = userRepository.existsByEmailOrUsername(request.email(), request.username());
+    if (exists) {
+        throw new UserAlreadyExistsException(request.email());
+    }
+    return userService.createUser(request); // calls the original, untouched method
+}
+
+```
+
+```java
+// ❌ if/else per type pattern
+// Grows forever: new login type = edit this method again (one big risky class)
+@Service
+public class AuthService {
+
+    public User authenticate(String type, String username, String password) {
+        if (type.equals("DB")) {
+            User user = userRepo.findByUsername(username);
+            if (user == null || !encoder.matches(password, user.getPassword())) {
+                throw new BadCredentialsException("Wrong credentials");
+            }
+            //100+ lines of logic
+            return user;
+        }
+        if (type.equals("LDAP")) {
+            DirContext ctx = ldapBind(username, password);
+            if (ctx == null) throw new BadCredentialsException("LDAP bind failed");
+            //100+ lines of logic
+            return userFromLdap(ctx);
+        }
+        if (type.equals("OAUTH2")) {
+            TokenInfo info = oauthClient.validate(password);
+            if (!info.valid()) throw new BadCredentialsException("Bad token");
+            //100+ lines of logic
+            return userFromToken(info);
+        }
+        throw new IllegalArgumentException("Unknown type: " + type);
+    }
+}
+
 
 // ✅ Add new behavior without changing existing code
-interface DiscountPolicy { double apply(double base); }
+public interface AuthenticationProvider {
+    Authentication authenticate(Authentication authentication) throws AuthenticationException;
+    boolean supports(Class<?> authType);
+}
 
-class RegularDiscount implements DiscountPolicy {
-    public double apply(double base) { return base; }
+// each class handles ONE auth type (bodies simplified here)
+class DaoAuthenticationProvider implements AuthenticationProvider { ... }  // DB
+class LdapAuthenticationProvider implements AuthenticationProvider { ... } // LDAP
+class JwtAuthenticationProvider implements AuthenticationProvider { ... }  // JWT token
+// New Authentication method? Add a new class — don't touch the old ones.
+
+class ProviderManager implements AuthenticationManager {
+    private final List<AuthenticationProvider> providers;
+
+    public Authentication authenticate(Authentication auth) throws AuthenticationException {
+        for (AuthenticationProvider p : providers) {
+            if (!p.supports(auth.getClass())) continue;
+            Authentication result = p.authenticate(auth);
+            if (result != null) return result;
+        }
+        throw new ProviderNotFoundException("No provider for " + auth.getClass());
+    }
 }
-class VipDiscount implements DiscountPolicy {
-    public double apply(double base) { return base * 0.9; }
-}
-// New rule? Add a new class — don't touch the old ones.
 ```
 
 ---
