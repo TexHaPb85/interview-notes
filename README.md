@@ -11,9 +11,9 @@ syntax-highlighted and readable on a phone.
 |-------|--------|
 | [PostgreSQL in 1 hour](theory/PostgreSQL.md) | ✅ done |
 | [Java multithreading](Java%20multithreading.md) | ✅ done |
-| [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](theory/AWS.md) | ✅ done |
+| [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](theory/aws-clouds/AWS.md) | ✅ done |
 | [Docker](theory/docker/Docker.md) | ✅ done |
-| [React / JS / TS](theory/React_JS_TS.md) | ✅ done |
+| [React / JS / TS](theory/frontend/React_JS_TS.md) | ✅ done |
 | [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/Microservices-protocols.md) | ✅ done |
 | [Redis vs Redux](theory/Redis-vs-Redux.md) | ✅ done |
 | [Java memory model & JVM tuning](theory/Java-memory-model.md) | ✅ done |

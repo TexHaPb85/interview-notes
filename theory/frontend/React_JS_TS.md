@@ -3,7 +3,7 @@
 ## Hooks
 
 | # | Hook          | What it gives you                                                         |
-|---|---------------|---------------------------------------------------------------------------|
+|---|---------------|-----------------------------------------------------------------------------|
 | 1 | `useState`    | local state variable in a React component that trigers rerender on update |
 | 2 | `useEffect`   | run a function depending on state variables passed in the deps array      |
 | 3 | `useContext`  | global context values (no props drilling)                                 |
@@ -16,11 +16,11 @@
 
 ## 1. useState — local state variable
 
-**Problem:** Standard variables do not trigger a UI update when they change. If you update a `let count = 0` variable, 
+**Problem:** Standard variables do not trigger a UI update when they change. If you update a `let count = 0` variable,
 React doesn't know it needs to re-render the screen.
 
-**Solution:** `useState` gives you a variable that, when updated via its setter function, 
-tells React to re-render the component with the new value. 
+**Solution:** `useState` gives you a variable that, when updated via its setter function,
+tells React to re-render the component with the new value.
 
 Hook `useState` stores state inside a single React component.
 
@@ -41,8 +41,8 @@ const Counter = () => {
 ```
 
 ## 2. useEffect — run side effects
-**Problem:** You need to do something outside of React's normal rendering flow, 
-like fetching data from an API, subscribing to an event, or manually changing the DOM. 
+**Problem:** You need to do something outside of React's normal rendering flow,
+like fetching data from an API, subscribing to an event, or manually changing the DOM.
 If you put this logic directly in the component body, it will run on every single render,
 causing infinite loops or performance nightmares.
 
@@ -77,6 +77,38 @@ export function DataTable<T extends { id: number }>({
     });
   }, [page, pageSize]);
 ```
+
+### Dependency array — how it changes when the function runs
+
+| Array passed | When the effect function runs |
+|---|---|
+| none — `useEffect(() => {...})` | after **every** render |
+| `[]` — empty array | only **once**, right after the first render (like `componentDidMount`) |
+| `[a, b]` | after the first render, then again only when `a` or `b` changes |
+
+```tsx
+useEffect(() => {
+  console.log("runs after every render");
+});
+
+useEffect(() => {
+  console.log("runs one time only, right after mount");
+}, []);
+
+useEffect(() => {
+  console.log("runs again only when page or pageSize changes");
+}, [page, pageSize]);
+```
+
+**Cleanup function:** if the effect returns a function, React calls that function before running the effect again, and also when the component unmounts.
+
+```tsx
+useEffect(() => {
+  const id = setInterval(() => console.log("tick"), 1000);
+  return () => clearInterval(id); // cleanup - stops the old interval first
+}, []);
+```
+
 ---
 
 ## useContext — share data without props drilling
@@ -111,8 +143,100 @@ export default App;
 - Authentication (current user)
 - Sharing API clients or config
 
-> Note: the `default value` is used **only** when a component reads the context with no
-> `Provider` above it. When the `Provider` value changes, **all** consumers re-render.
+---
+
+### Re-render rule: it does not matter HOW you use the value
+
+When the `Provider`'s `value` changes, **every** component that calls `useContext(ThisContext)` re-renders. This is true even if you don't put the value into `useState` — even if you only pass it into a function or just read one field from it. React re-runs the whole component function again, no matter what you do inside that function.
+
+```tsx
+const CountContext = createContext(0);
+
+const LoggerOnly = ({ children }: { children: React.ReactNode }) => {
+  const count = useContext(CountContext);
+
+  logSomewhere(count); // count is only passed to a function, never saved to state
+
+  console.log("LoggerOnly rendered"); // <- still prints on every Provider update
+  return <div>{children}</div>;
+};
+```
+
+Every time `CountContext` value changes, `LoggerOnly` renders again and prints the log line — even though `count` never goes through `useState`. The re-render is triggered by React itself because the component reads the context, not by how the value is used inside.
+
+---
+
+### Complex example: key-value object in context (with update function)
+
+Real context often holds an object (key-value map), not just one string. Example: a price list, plus a function to change one price and keep the rest unchanged.
+
+```tsx
+// 1. types
+type PriceMap = Record<string, number>; // { "apple": 10, "banana": 5 }
+
+interface PriceContextType {
+  prices: PriceMap;
+  setPrice: (key: string, value: number) => void; // updater goes through context too
+}
+
+const PriceContext = createContext<PriceContextType | null>(null);
+```
+
+**Provider (with comments):**
+
+```tsx
+const PriceProvider = ({ children }: { children: React.ReactNode }) => {
+  // 1. the real key-value data lives in useState
+  const [prices, setPrices] = useState<PriceMap>({
+    apple: 10,
+    banana: 5,
+  });
+
+  // 2. function to update ONE key, keeping all other keys as they are
+  const setPrice = (key: string, value: number) => {
+    setPrices(prev => ({
+      ...prev,       // copy all old key-value pairs
+      [key]: value,  // overwrite (or add) just this one key
+    }));
+  };
+
+  // 3. object given to the Provider - data + the function that changes it
+  const value: PriceContextType = { prices, setPrice };
+
+  return (
+    <PriceContext.Provider value={value}>
+      {children}
+    </PriceContext.Provider>
+  );
+};
+```
+
+**Put a new value into the existing context (called from any child):**
+
+```tsx
+const ProductRow = ({ id }: { id: string }) => {
+  const ctx = useContext(PriceContext);
+  if (!ctx) throw new Error("ProductRow must be inside PriceProvider");
+
+  const { prices, setPrice } = ctx;
+
+  return (
+    <div>
+      <span>{id}: ${prices[id] ?? 0}</span>
+      {/* calling setPrice updates context - every reader re-renders */}
+      <button onClick={() => setPrice(id, (prices[id] ?? 0) + 1)}>+1</button>
+    </div>
+  );
+};
+```
+
+Calling `setPrice` inside `ProductRow` updates the state inside `PriceProvider`. React builds a new `prices` object and a new `value` object, so the `Provider` sends a new reference down — every component that called `useContext(PriceContext)` re-renders, same rule as above.
+
+> Note: `value = { prices, setPrice }` is a new object on every Provider render. In a big app this can cause extra re-renders. Fix: wrap it with `useMemo(() => ({ prices, setPrice }), [prices])`. More on this in the `useMemo` section below.
+
+---
+
+> **Summary:** the `default value` in `createContext(...)` is used **only** when a component reads the context with no `Provider` above it. When the `Provider`'s `value` changes, **all** consumers re-render — no matter what they do with the value inside.
 
 ---
 
@@ -289,7 +413,7 @@ running and the Promise calls you back when it is done.
 A Promise has **three states**:
 
 | State       | Meaning                                  |
-|-------------|------------------------------------------|
+|-------------|-------------------------------------------|
 | `pending`   | still running, no result yet             |
 | `fulfilled` | finished OK, has a value (`.then`)       |
 | `rejected`  | failed, has an error (`.catch`)          |
@@ -363,7 +487,7 @@ await Promise.all(ids.map(id => fetchUser(id)));
 **Q: `Promise.all` vs `allSettled` vs `race` vs `any`?**
 
 | Method                 | Resolves when…                       | Rejects when…                  | Use for                              |
-|------------------------|--------------------------------------|--------------------------------|--------------------------------------|
+|------------------------|---------------------------------------|----------------------------------|----------------------------------------|
 | `Promise.all`          | **all** succeed                      | **any one** fails (fail-fast)  | need every result, all-or-nothing    |
 | `Promise.allSettled`   | **all** finish (ok or fail)          | never                          | want every outcome, ignore failures  |
 | `Promise.race`         | the **first** one settles (ok/fail)  | first settles with a rejection | timeouts, fastest-wins               |
@@ -403,11 +527,11 @@ console.log("4");
 
 **Q: `var` vs `let` vs `const`?**
 
-| Keyword | Scope    | Reassign? | Hoisting                          |
-|---------|----------|-----------|-----------------------------------|
-| `var`   | function | yes       | hoisted, initialized `undefined`  |
-| `let`   | block    | yes       | hoisted but in TDZ (error if used early) |
-| `const` | block    | no        | hoisted but in TDZ                |
+| Keyword | Scope    | Reassign? | Hoisting                                  |
+|---------|----------|-----------|---------------------------------------------|
+| `var`   | function | yes       | hoisted, initialized `undefined`          |
+| `let`   | block    | yes       | hoisted but in TDZ (error if used early)  |
+| `const` | block    | no        | hoisted but in TDZ                        |
 
 > TDZ = Temporal Dead Zone: the time between the start of the block and the line where
 > `let`/`const` is declared. Using the variable there throws a `ReferenceError`.
@@ -443,11 +567,11 @@ type Point = [number, number];    // tuple
 
 **Q: `any` vs `unknown` vs `never`?**
 
-| Type      | Meaning                                                                 |
-|-----------|-------------------------------------------------------------------------|
-| `any`     | turns **off** type checking — avoid it                                   |
-| `unknown` | "could be anything", but you **must narrow** it before use (type-safe `any`) |
-| `never`   | a value that **never happens** (function that always throws / infinite loop) |
+| Type      | Meaning                                                                          |
+|-----------|------------------------------------------------------------------------------------|
+| `any`     | turns **off** type checking — avoid it                                            |
+| `unknown` | "could be anything", but you **must narrow** it before use (type-safe `any`)     |
+| `never`   | a value that **never happens** (function that always throws / infinite loop)     |
 
 **Q: What are generics?**
 Types that take a **parameter**, so one function/type works for many types while staying
@@ -469,10 +593,10 @@ first(["a", "b"]);      // T = string
 
 ## useMemo vs useCallback vs React.memo
 
-| Tool          | What it memoizes                | Returns                          |
-|---------------|---------------------------------|----------------------------------|
-| `useMemo`     | the **result** of a calculation | the cached value                 |
-| `useCallback` | a **function** definition       | the cached function              |
+| Tool          | What it memoizes                | Returns                                                    |
+|---------------|-----------------------------------|---------------------------------------------------------------|
+| `useMemo`     | the **result** of a calculation | the cached value                                           |
+| `useCallback` | a **function** definition       | the cached function                                        |
 | `React.memo`  | a **component**                 | a wrapped component that skips re-render if props are equal |
 
 > `useCallback(fn, deps)` is the same as `useMemo(() => fn, deps)`.
