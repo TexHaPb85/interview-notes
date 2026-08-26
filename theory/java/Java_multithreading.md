@@ -1,5 +1,17 @@
 # Java multithreading
 
+## Quick links
+
+- [Thread-safe collections](#thread-safe-collections)
+- [CAS (Compare-And-Swap)](#cas-compare-and-swap)
+- [Do all java.util.concurrent collections use optimistic locking?](#do-all-javautilconcurrent-collections-use-optimistic-locking)
+- [java.util.concurrent vs PostgreSQL isolation levels](#javautilconcurrent-vs-postgresql-isolation-levels)
+- [How do atomics work under the hood? What makes the non-blocking approach possible?](#how-do-atomics-work-under-the-hood-what-makes-the-non-blocking-approach-possible)
+- [Deadlock and livelock](#deadlock-and-livelock)
+- [Thread pools (Executors)](#thread-pools-executors)
+
+---
+
 ## Thread-safe collections
 
 Java gives you three generations of thread-safe collections:
@@ -196,11 +208,11 @@ per task. Most are built from the `Executors` factory or the `ThreadPoolExecutor
 | Pool                              | Created with                                  | What it does                                                                 |
 |-----------------------------------|-----------------------------------------------|------------------------------------------------------------------------------|
 | **FixedThreadPool**               | `Executors.newFixedThreadPool(n)`             | Exactly `n` threads, unbounded queue. Steady, predictable load.              |
+| **VirtualThreadPerTaskExecutor** (Java 21) | `Executors.newVirtualThreadPerTaskExecutor()` | One cheap **virtual thread** per task. Great for many IO-bound tasks.        |
+| **WorkStealingPool / ForkJoinPool** | `Executors.newWorkStealingPool()` / `ForkJoinPool` | Each thread has its own task deque and **steals** work from busy threads. Splits big tasks into small ones (fork/join). Best for CPU-bound divide-and-conquer. Backs parallel streams. |
+| **ScheduledThreadPool**           | `Executors.newScheduledThreadPool(n)`         | Runs tasks after a delay or on a repeating schedule (cron-like).             |
 | **CachedThreadPool**              | `Executors.newCachedThreadPool()`             | Makes threads on demand, reuses idle ones, drops them after 60s. Threads are unbounded — risky under a flood. |
 | **SingleThreadExecutor**          | `Executors.newSingleThreadExecutor()`         | One thread; tasks run one by one in order.                                   |
-| **ScheduledThreadPool**           | `Executors.newScheduledThreadPool(n)`         | Runs tasks after a delay or on a repeating schedule (cron-like).             |
-| **WorkStealingPool / ForkJoinPool** | `Executors.newWorkStealingPool()` / `ForkJoinPool` | Each thread has its own task deque and **steals** work from busy threads. Splits big tasks into small ones (fork/join). Best for CPU-bound divide-and-conquer. Backs parallel streams. |
-| **VirtualThreadPerTaskExecutor** (Java 21) | `Executors.newVirtualThreadPerTaskExecutor()` | One cheap **virtual thread** per task. Great for many IO-bound tasks.        |
 
 `ThreadPoolExecutor` is the real engine behind `Fixed`, `Cached`, and `Single`. In
 production, build it directly so you control the key knobs:
@@ -212,3 +224,51 @@ production, build it directly so you control the key knobs:
 
 > Tip: the `Executors.newFixedThreadPool` default uses an **unbounded** queue, so tasks can
 > pile up until the app runs out of memory. A bounded `ThreadPoolExecutor` is safer.
+
+### CPU-bound vs IO-bound tasks
+
+The task type decides how many threads you need and which pool fits.
+
+- **CPU-bound task** — the thread is busy computing (math, parsing, sorting, encoding).
+  It rarely waits. More threads than CPU cores just adds context-switch overhead, so
+  don't help.
+- **IO-bound task** — the thread mostly waits (DB call, HTTP call, file read, network).
+  While it waits, the CPU is free, so you can run many more threads than cores.
+
+| Task type | Thread count rule | Best pool |
+|-----------|--------------------|-----------|
+| CPU-bound | ≈ number of CPU cores (`Runtime.getRuntime().availableProcessors()`), maybe +1 | `ForkJoinPool` / `WorkStealingPool` for divide-and-conquer work; a `FixedThreadPool` sized to core count otherwise |
+| IO-bound  | much higher than cores — depends on how long each call waits | `VirtualThreadPerTaskExecutor` (Java 21+, best choice today); `CachedThreadPool` or a larger `FixedThreadPool` on older Java |
+
+A classic formula (from *Java Concurrency in Practice*) for a mixed workload:
+
+```text
+threads = cores * (1 + waitTime / computeTime)
+```
+
+If a task waits 9× longer than it computes, you need about 10× more threads than cores.
+
+**Why virtual threads changed this:** a platform (OS) thread is expensive — heavy stack,
+costs memory, the OS can run only a few thousand at once. A virtual thread is cheap —
+you can start hundreds of thousands of them. So for IO-bound work, `newVirtualThreadPerTaskExecutor()`
+now beats manually tuning a `CachedThreadPool` size. Don't use virtual threads for
+CPU-bound work — more virtual threads still can't run on more cores than you have.
+
+### Other factors when choosing a pool
+
+- **Task duration** — many short tasks favor a pool with low per-task overhead
+  (`FixedThreadPool`, virtual threads). Few long tasks are fine with a smaller pool.
+- **Need for order** — if tasks must run one after another, use `SingleThreadExecutor`.
+- **Scheduling** — delayed or repeating tasks need `ScheduledThreadPool`.
+- **Backpressure** — use a **bounded** queue plus a `RejectedExecutionHandler`
+  (e.g. `CallerRunsPolicy`) so a burst of tasks can't cause an OOM.
+- **Blocking inside pool threads** — never block a pool thread waiting on another task
+  from the *same* pool (can deadlock the pool). Use a separate pool or virtual threads
+  instead.
+- **Virtual thread pitfalls** — avoid pooling virtual threads (defeats their purpose,
+  they are cheap to create). Watch out for **pinning**: a virtual thread blocked inside
+  an old `synchronized` block pins the platform thread underneath it, so it can't yield.
+  Use `ReentrantLock` instead of `synchronized` around blocking calls when you use
+  virtual threads.
+- **Isolation** — separate pools for separate concerns (e.g. one pool per external
+  service) so a slow dependency can't starve threads needed for other work.

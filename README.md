@@ -16,7 +16,7 @@ syntax-highlighted and readable on a phone.
 | [React / JS / TS](theory/frontend/React_JS_TS.md) | ✅ done |
 | [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/Microservices-protocols.md) | ✅ done |
 | [Redis vs Redux](theory/Redis-vs-Redux.md) | ✅ done |
-| [Java memory model & JVM tuning](theory/Java-memory-model.md) | ✅ done |
+| [Java memory model & JVM tuning](theory/java/Java-memory-model.md) | ✅ done |
 | [SOLID principles](theory/SOLID-principles.md) | ✅ done |
 | [CI/CD pipeline (Docker + AWS + GitHub Actions)](theory/CI-CD-pipeline.md) | ✅ done |
 
