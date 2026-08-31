@@ -1,0 +1,46 @@
+Have you ever connected directly to Hibernate or JDBC, instead of JPA? How to do it? 07:15
+- I connected to JDBC ib spring project when I was forced to use it because tables were dynamically created and removed
+
+/Kafka
+We have 1 consumer group with 2 instances of one service and topic from some producer with 3 partitions.
+How partitions weill be read?
+- some instance will get messages from two partitions another instance - from one partitions
+What if 3 instances and 2 partition
+- then one instance is useless in messages reading, only two services will read every with 1 partition
+How can we set up Kafka to read messages in order of sending, one by one? 10:20
+- using keys for messages we want to read in order, then all of them will get in same partition in order of sending
+- If you need order for ALL messages in topic, not just for one key group — you need topic with 1 partition only.
+We want our events to be consumed exactly one time, how to set it up? where? in consumer or producer side? 11:05
+- Exactly-once needs setup on producer AND consumer side. Producer side:
+- enable.idempotence=true — stops duplicate messages if producer retries
+- Use Kafka transactions if you write to few partitions/topics and need all-or-nothing @Transactional("kafkaTransactionManager")
+- Consumer side: isolation.level=read_committed — consumer will read only committed messages
+
+/Mongo DB
+why Mongo DB can be better and used instead of SQL?
+- on my practice it stored non-standart jsons of people profiles, different form for every json with unpredictable fields names
+then why cannot we use JSONB data type from postgreesql?
+- why...because in mongo we can search by some fields and texts through whole collection?
+In postgres we cannot?
+- with JSONB? I don`t know whether there are syntax "like %*%" for JSONB...
+
+/Postgres
+We have some rest endpoint returning user by id. At some point we see that its latency growth up a lot, how to analyze it? 15:00
+- in postgresql there is extension pg_stat_statements, we set it up and check which requests and mostly used and its avg executing time
+- there we see all the slowest queries related to our user selecting and use EXPLAIN on them, it shown us query plan
+- there we are looking for sequential scans through the tables, if there are join - highly likely there are unindexed foreign keys
+
+Imagine that 90% of our selects in DB are same queries for 20% of rows in DB. What can we do to optimize selection in such case?
+- add cache, for many instances best option is Redis, store queries as keys and responses as values, set up removing after some time
+How we can do it in code?
+- there is spring boot starter for redis that allow as select and put values there, for every request we first check redis
+- if query not there - then return value from DB in response and asynchronously put it into Redis, next time - it will be there
+What about using spring cache and @Cachable annotation? how you could use it?
+-- dont know...
+
+/microservices
+We have microservices ServiceA and ServiceB, it will communicate via REST, but now they don`t know yet about exact links of each other
+which ways do you know how to connect them for REST communication?
+-- service registry, eg, Eureka, stores "service-name" as key and its link as value, or direct storage of urls in DB or configs
+which ways do you know how to connect them if microservices going to use gRPC or thrift?
+-- dont know...
