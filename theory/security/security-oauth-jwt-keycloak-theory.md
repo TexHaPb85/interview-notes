@@ -39,8 +39,22 @@ client_secret=xxx
 grant_type=client_credentials
 
 -> { access_token: "...", expires_in: 300 }
+
 ```
-Example: `order-service` calls `inventory-service` on a schedule — no user triggered this call.
+### `client_id` and `client_secret`
+
+**`client_id`** — public identifier for your app. Identifies *which app* is talking to the Authorization Server. Not secret — visible in URLs, browser network tab, logs. Similar to a username, but for an application, not a person.
+
+**`client_secret`** — private password for your app. Proves the app is really who it claims to be. Used when exchanging a code for a token, or for the `client_credentials` grant. Must stay server-side only, never in a browser or mobile app bundle.
+
+Both are set up in Keycloak when you register a client: Realm → Clients → create client → `client_id` (you choose it) + `client_secret` (Keycloak generates it, on the "Credentials" tab).
+
+Typical Spring Boot config (`application.yml`):
+```yaml
+client:
+  client-id: proxima
+  client-secret: fe057b1348d23005c2da88adfe9686ba42df80d0
+```
 
 #### Refresh Token
 Gets a new access token once the old one expires, without asking the user to log in again.
@@ -74,20 +88,6 @@ Why deprecated: the token sits in the URL fragment — can leak via browser hist
 
 **PKCE** (Proof Key for Code Exchange) — required for public clients (SPA, mobile) that can't safely store a client secret. The client generates a random `code_verifier`, sends its hash (`code_challenge`) with the initial redirect, then sends the raw `code_verifier` when exchanging the code. This proves the code-exchange request comes from the same client that started the flow — protects against authorization-code interception.
 
-### `client_id` and `client_secret`
-
-**`client_id`** — public identifier for your app. Identifies *which app* is talking to the Authorization Server. Not secret — visible in URLs, browser network tab, logs. Similar to a username, but for an application, not a person.
-
-**`client_secret`** — private password for your app. Proves the app is really who it claims to be. Used when exchanging a code for a token, or for the `client_credentials` grant. Must stay server-side only, never in a browser or mobile app bundle.
-
-Both are set up in Keycloak when you register a client: Realm → Clients → create client → `client_id` (you choose it) + `client_secret` (Keycloak generates it, on the "Credentials" tab).
-
-Typical Spring Boot config (`application.yml`):
-```yaml
-client:
-  client-id: proxima
-  client-secret: fe057b1348d23005c2da88adfe9686ba42df80d0
-```
 
 #### Confidential client vs public client
 
@@ -229,6 +229,69 @@ An open-source **Identity and Access Management (IAM)** server implementing OAut
 - Symmetric (HS256) signing shared across many services → any compromised service can forge tokens for the whole system.
 - Trusting client-supplied roles without validating the signature first.
 - No revocation strategy — a stolen long-lived token stays valid until it naturally expires.
+
+
+## 7. CSRF (Cross-Site Request Forgery)
+
+**Attack idea:** you're logged into `bank.com` (session cookie set). A malicious site (`evil.com`) silently sends a request to `bank.com` from your browser. Browsers attach cookies automatically, regardless of which site triggered the request — so the forged request looks "logged in" too.
+
+**Defense — CSRF token (cookie + header pattern):**
+- `bank.com` sets a `XSRF-TOKEN` cookie for the user.
+- `bank.com`'s **own frontend JS** reads that cookie and adds it as a custom header (`X-XSRF-TOKEN`) on every real request it makes — this only works because the script runs on `bank.com`'s own origin, so it's allowed to read `bank.com`'s cookie.
+- Server accepts the request only if the cookie value **matches** the header value.
+
+**Why the attacker can't fake it:** `evil.com`'s script can trigger a request to `bank.com` (cookie gets sent automatically), but it **cannot read** `bank.com`'s cookie value (Same-Origin Policy blocks that) — so it can't set the matching `X-XSRF-TOKEN` header. Sending ≠ reading.
+
+**Example — attack blocked:**
+1. evil.com's JS triggers: fetch('https://bank.com/transfer', {method:'POST'})
+2. Browser auto-attaches: Cookie: XSRF-TOKEN=a8f5f167 (sent blindly)
+3. Browser does NOT attach: X-XSRF-TOKEN header — evil.com's JS never set it, doesn't know the value
+4. bank.com's server checks: cookie value == header value?
+5. Cookie says a8f5f167, header is missing/empty -> MISMATCH
+6. bank.com's server responds: 403 Forbidden (transfer never happens)
+7. That 403 response — evil.com still can't read it either (CORS), but irrelevant now,
+8. since the real damage (the transfer) already didn't happen
+
+**Spring Security defaults:**
+
+| App type | CSRF protection | Why |
+|---|---|---|
+| Traditional server-rendered app (session + cookie login) | Enabled by default | Cookie auto-attaches → vulnerable |
+| Stateless REST API + JWT in `Authorization` header | Usually disabled | Header isn't auto-attached by the browser like a cookie is — attacker's forged request can't add it either way |
+
+⚠️ If the JWT itself is stored in an `httpOnly` cookie instead of sent via header (BFF pattern), you're cookie-based again — CSRF protection is needed.
+
+## 8. CORS (Cross-Origin Resource Sharing)
+
+**Same-Origin Policy (browser default):** JS running on one origin cannot **read the response** of a request to a different origin. Origin = protocol + domain + port — different in any of these = different origin. CORS is how a server explicitly allows a specific other origin to read its responses.
+
+**Example — blocked by default:**
+```js
+// running on https://myapp.com
+fetch('https://api.myapp.com/orders')
+  .then(res => res.json());
+
+// Access to fetch at 'https://api.myapp.com/orders' from origin 'https://myapp.com'
+// has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present
+```
+
+
+**Spring config:**
+```java
+@Bean
+CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration config = new CorsConfiguration();
+    config.setAllowedOrigins(List.of("https://myapp.com"));
+    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+    config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", config);
+    return source;
+}
+```
+
+**CORS vs CSRF:** CSRF = server decides whether the action should **execute** (token match). CORS = browser decides who's allowed to **read** the response (based on server's headers).
 
 ---
 

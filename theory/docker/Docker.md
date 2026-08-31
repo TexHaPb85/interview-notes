@@ -196,6 +196,13 @@ A fuller real-world one usually also has: `target/` (except the jar you need),
 # Build an image from the Dockerfile in the current folder, give it a name:tag
 docker build -t opus-backend:1.0 .
 
+# 3. Tag the image for ECR
+#    docker tag <local-name>:<tag> <new-name>:<tag>
+#    This does NOT copy or rebuild anything — it just adds a second name
+#    (pointer) to the same image. ECR requires the image name to start
+#    with the full registry URL, so you "rename" it before pushing.
+docker tag opus-backend:1.0 <account_id>.dkr.ecr.eu-west-2.amazonaws.com/opus-backend:1.0
+
 # List images you have locally
 docker images
 
