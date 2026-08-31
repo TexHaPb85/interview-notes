@@ -1,0 +1,67 @@
+/AI
+Tell about your experience with AI?
++
+Did you use mcp-s in the claude code?
+- example how to use...
+Did you use subagents of claude?
+- in automatic mode
+
+/Spring
+Spring vs Spring boot? what should I use and when?
+- Spring boot with its concept of starters and autoconfiguration - provide us some recommended/default way how to set up some functionality
+- eg you add spring security and you have some default auth on you app that later can be configured
+- also SB provide us autoconfiguration of dependency versions
+- and also running server like tomcat
+Object vs Bean?
+- Bean is spring version of Object and implements IoC and DI
+Bean scopes?
+-prototype, sigleton, httprequest, session
+bean lifecycle?
+- constructor, @postconstruct, afterPropertiesSet, some way to insert before wrapping with proxy, @PreDestroy
+@Transactional
++
+WEBFLUX???? mono vs flux?
+
+/postgres or SQL
+CHAR vs VARCHAR?
+- CHAR is one symbol, VARCHAR is string
+
+
+/Java
+Difference between Streams(Stream API since java 8) and Collections?
+- Collections are data structures for storing data, streams rather a set of operations that will be executed and return some result
+Which operations types in streams do you know?
+-intermediate and terminal
+Can we call terminal operation twice on same stream?
+- no, we should clone this stream then
+.map() vs flatMap()
+- .map() transforms stream in one type into another type
+- .flatMap() also transforms stream but do few elements from 1
+when should we use Optinal? interesting cases?
+- in spring boot we can wrap beans into optional if we are not sure whether such bean is constructed already
+- retreiving values from DB
+how does hash map works?
++
+can we store null key in Map?
+-It bypasses normal hashing and places the null key directly into bucket 0 to avoid a NullPointerException
+what is immutable object? hot to implement it?
++
+where can we use immutable objects except Hash data structures?
+- Security: Sensitive data like passwords, connection URLs, or user permissions stay safe from tampering after creation.
+- Cache Keys: Immutable objects have stable states. They work well as keys in maps or caches because their hash codes never change.
+- Thread Safety: Multiple threads can read immutable objects at the same time without locks. Data never changes, so race conditions cannot happen.
+what is Thread pool?
+- structure that stores and use threads for executing some queue of input tasks
+volotile vs atomic?
+- volotile - modifier that disable caching variables in cores L1/L2 cache and disable code optimizations by compiler
+- atomic - special structures for data which required atomic operations to avoid race condition(whole operation should be executed, or it should be discarded)
+- it uses CAS(Create and Save) algorithm passing there expected result and if after executing the operation result != expected - try again
+- expected result computed using atomic processor operations.
+Which memory types do you know in java?
+-Stack(for every thread) and Heap. Heal has generations for "old"(survivirs) and "young"(new) objects.
+Tell about GC?
+- GC clears heap when it is near the overflowing, when we about to be out of memory in heap.
+- GC removes objects from heap that are not referenced from anywhere,
+- in case of cycle dependency between 2+ objects such group of obects are also removed if non of them is referenced from anywhere
+- there are generations of objects that survived few cleaning iterations and got into Survivor arean and then in old generation
+

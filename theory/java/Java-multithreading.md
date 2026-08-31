@@ -212,7 +212,6 @@ per task. Most are built from the `Executors` factory or the `ThreadPoolExecutor
 | **WorkStealingPool / ForkJoinPool** | `Executors.newWorkStealingPool()` / `ForkJoinPool` | Each thread has its own task deque and **steals** work from busy threads. Splits big tasks into small ones (fork/join). Best for CPU-bound divide-and-conquer. Backs parallel streams. |
 | **ScheduledThreadPool**           | `Executors.newScheduledThreadPool(n)`         | Runs tasks after a delay or on a repeating schedule (cron-like).             |
 | **CachedThreadPool**              | `Executors.newCachedThreadPool()`             | Makes threads on demand, reuses idle ones, drops them after 60s. Threads are unbounded — risky under a flood. |
-| **SingleThreadExecutor**          | `Executors.newSingleThreadExecutor()`         | One thread; tasks run one by one in order.                                   |
 
 `ThreadPoolExecutor` is the real engine behind `Fixed`, `Cached`, and `Single`. In
 production, build it directly so you control the key knobs:
