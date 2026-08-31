@@ -19,7 +19,7 @@ What is event sourcing?(as architecture style)
 /java
 SOLID, explain L?
 - Liskov substitution, subclasses should complement logic of parentclasses, not replace it. We should be able to replace parent class with subclass with min code change.
-How to create immutable class?
+How to create immutable class? what if it contains list of mutable objects?
 +
 synchronized?
 - block concurrent access to some resource in scope of block or in method, if method marked as synchronized - the resource is this.(1 instance of class)

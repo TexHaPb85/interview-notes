@@ -1,4 +1,5 @@
--interview questions finished with ? in the end and don`t have - or any other sign in the beginning.
+-interview questions finished with ? in the end and don`t have '-' or any other sign in the beginning.
 -answers start from '-', there can be few rows of answers then all of then starts with '-'
 -symbol '+' under question means it is too easy to answer
--string "--"under question means I don`t know answer and not sure in what have I written after it(if I did)
+-string "--" under question means I don`t know answer and not sure in what have I written after it(if I did)
+-if there are numbers in the end of question like 11:05 - ignore it, this is timing notes

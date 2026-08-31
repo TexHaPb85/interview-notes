@@ -15,7 +15,7 @@ syntax-highlighted and readable on a phone.
 | [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](theory/aws-clouds/AWS.md)                   |
 | [Docker](theory/docker/Docker.md)                                                        |
 | [React / JS / TS](theory/frontend/React_JS_TS.md)                                        |
-| [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/Microservices-protocols.md) |
+| [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/microservices/Microservices-protocols.md) |
 | [Redis vs Redux](theory/Redis-vs-Redux.md)                                               |
 | [Java memory model & JVM tuning](theory/java/Java-memory-model.md)                       |
 | [SOLID principles](theory/SOLID-principles.md)                                           |
