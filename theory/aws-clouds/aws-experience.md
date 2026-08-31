@@ -1,5 +1,5 @@
 AWS experience:
-in startup like comany I was fully responsible for development of 2 services end-to-end;
+in startup-like company I was fully responsible for development of 2 services end-to-end;
 so with help of CTO who had access to our AWS we set up initial deployment to AWS;
 - In our  VPC in public subnets we added 1 microservice for tracking click from emails and sending kafka events on every click to main backend;
 - In same public subnets we added  1 microservice with NAT Gateway for downloading click reports from our affiliates(by their APIs) and  main BE service could call it in our priate network;

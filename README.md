@@ -7,22 +7,18 @@ syntax-highlighted and readable on a phone.
 
 ## Topics
 
-| Topic | Status |
-|-------|--------|
-| [PostgreSQL in 1 hour](theory/PostgreSQL.md) | ✅ done |
-| [Java multithreading](Java%20multithreading.md) | ✅ done |
-| [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](theory/aws-clouds/AWS.md) | ✅ done |
-| [Docker](theory/docker/Docker.md) | ✅ done |
-| [React / JS / TS](theory/frontend/React_JS_TS.md) | ✅ done |
-| [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/Microservices-protocols.md) | ✅ done |
-| [Redis vs Redux](theory/Redis-vs-Redux.md) | ✅ done |
-| [Java memory model & JVM tuning](theory/java/Java-memory-model.md) | ✅ done |
-| [SOLID principles](theory/SOLID-principles.md) | ✅ done |
-| [CI/CD pipeline (Docker + AWS + GitHub Actions)](theory/CI-CD-pipeline.md) | ✅ done |
+| Topic                                                                                    |
+|------------------------------------------------------------------------------------------|
+| [PostgreSQL](theory/DB/PostgreSQL.md)                                                    |
+| [MongoDB](theory/DB/MongoDB.md)                                                       |
+| [Java multithreading](Java-multithreading.md)                                            |
+| [AWS services (S3, ECS, EKS, MSK, VPC, RDS)](theory/aws-clouds/AWS.md)                   |
+| [Docker](theory/docker/Docker.md)                                                        |
+| [React / JS / TS](theory/frontend/React_JS_TS.md)                                        |
+| [Microservice protocols (Thrift, HTTP/S, SOAP, gRPC)](theory/Microservices-protocols.md) |
+| [Redis vs Redux](theory/Redis-vs-Redux.md)                                               |
+| [Java memory model & JVM tuning](theory/java/Java-memory-model.md)                       |
+| [SOLID principles](theory/SOLID-principles.md)                                           |
+| [CI/CD pipeline (Docker + AWS + GitHub Actions)](theory/CI-CD-pipeline.md)               |
 
-Legend: ✅ done · 🚧 in progress · ⬜ planned
 
-## Format
-
-- Markdown (`.md`), one file per topic.
-- Original `.docx` drafts are kept locally but **not** committed (see `.gitignore`).
