@@ -401,6 +401,71 @@ const App = () => {
 
 ---
 
+## CSR vs SSR
+
+### CSR (Client-Side Rendering) - used in react apps by default, eg created using vite
+- Browser downloads empty HTML + JS bundle, JS runs in browser, builds the whole page
+- First load: slower, blank screen then content appears
+- After load: fast page switches (SPA = Single Page Application)
+- No SEO by default - crawlers (google bots) won't see any content
+- After build can be run as simple index.html/JS application, but for complex operations like DB calls requires a separate BE server, called from browser
+- Server like EC2 not needed here, 100% of logic is executed in client's browser
+
+*Deployment:* `npm run build` → generated `dist/` folder → upload to S3 → serve via CloudFront (CDN). No server, no Docker needed. (Alternative: Docker + nginx on EC2/ECS also works, if you want same infra pattern as SSR — but S3 is simpler/cheaper for pure static files.)
+
+*Used for:* inner systems that don't require SEO or previews (admin panels)
+
+### SSR (Server-Side Rendering) - node based server returns pages
+- Server (Node based) runs React code, builds HTML pages and returns them to browser + same JS bundle as in CSR
+- Then JS executes in browser again (called "hydration") to attach react hooks/functions logic, also compares HTML generated in browser vs server (mismatch = "hydration mismatch")
+- Main difference with CSR from client POV - client gets ready HTML before first render, which is good for SEO and previews
+- Like Java web-app in deployment, requires a server with CPU and RAM (eg EC2), running on some port, and can execute Node-based logic that browser JS can't run — eg server-side DB queries (`getServerSideProps`, API routes)
+
+*Deployment:* build Docker image from Dockerfile with server build logic → push to ECR → update ECS task definition → update service → wait for stable. Needs EC2/ECS, not just static hosting.
+
+*Used for:* web apps that require SEO/previews/showing content on first render, or operations that can't be executed via browser JS
+
+### Example how to create CSR app (Vite)
+
+    npm create vite@latest my-app -- --template react-ts
+    cd my-app
+    npm run dev
+
+Everything renders in the browser. No React code runs on server.
+
+### Example how to create SSR app (Next.js)
+
+    npx create-next-app@latest my-app
+    cd my-app
+    npm run dev
+
+Next.js renders pages on server by default.
+- Pages Router: `getServerSideProps` fetches data on server, HTML is ready before sending
+- App Router: components are Server Components by default, add `"use client"` only when you need browser interactivity (useState, onClick)
+
+### Example: manual SSR (Express, no framework — good for understanding)
+
+    // server.js
+    import express from "express";
+    import { renderToString } from "react-dom/server";
+    import App from "./App";
+
+    const app = express();
+    app.get("/", (req, res) => {
+      const html = renderToString(<App />);
+      res.send(`<html><body><div id="root">${html}</div></body></html>`);
+    });
+    app.listen(3000);
+
+    // client.js
+    import { hydrateRoot } from "react-dom/client";
+    import App from "./App";
+    hydrateRoot(document.getElementById("root"), <App />);
+
+`renderToString` builds HTML on server. `hydrateRoot` on client connects event listeners to that HTML — this step is hydration.
+
+---
+
 ## Common JavaScript / TypeScript interview questions
 
 ### Promises & async/await
