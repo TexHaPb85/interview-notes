@@ -53,9 +53,9 @@ syntax-highlighted and readable on a phone.
 
 ### Security
 
-| Topic | Keywords |
-|---|---|
-| [Security — OAuth2 / JWT / Keycloak](theory/security/security-oauth-jwt-keycloak-theory.md) | OAuth2, JWT, Keycloak, security, authentication |
+| Topic | Keywords                          |
+|---|-----------------------------------|
+| [Security — OAuth2 / JWT / Keycloak](theory/security/security-oauth-jwt-keycloak-theory.md) | OAuth2, JWT, Keycloak, CORS, CSRF |
 
 ### Spring
 
