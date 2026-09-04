@@ -3,7 +3,7 @@
 ## JS base
 
 **1. How to declare a variable in JavaScript?**
-`+` (too easy)
+var/let/const
 
 **2. What is the difference between `var`, `let` and `const`?**
 `+` (too easy)
