@@ -1,8 +1,9 @@
-# React
+# Redux
 
 ## Quick links
 
 - [State management and Redux](#state-management-and-redux)
+- [Why not just Context?](#why-not-just-context)
 - [Redux with React (Redux Toolkit)](#redux-with-react-redux-toolkit)
 - [Alternatives to Redux](#alternatives-to-redux)
 - [Most popular interview questions](#most-popular-interview-questions)
@@ -16,8 +17,8 @@ few components need) is enough. As an app grows, two problems show up:
 
 - **Prop drilling** — passing a value down through five layers of components that don't
   themselves need it, just to reach the one that does.
-- **Shared state changing often** — `useContext` re-renders every consumer on any
-  change, which gets expensive for state that updates frequently (e.g. a live cart total).
+- **Shared state changing often** — many components need to read (and sometimes write)
+  the same piece of state, and it updates a lot.
 
 **Redux** solves this by keeping all shared state in **one central store**, with a
 single, predictable way to change it:
@@ -32,6 +33,104 @@ dispatch(action)  ->  reducer  ->  new state  ->  components re-render
   mutates the old state directly.
 - **Dispatch / selector** — components send actions with `dispatch(action)`, and read
   state with a selector (`useSelector` in React).
+
+## Why not just Context?
+
+`useContext`, maybe combined with `useReducer`, can absolutely give you a small,
+dependency-free version of the Redux pattern — one shared piece of state, updated
+through actions. For plenty of apps, that's genuinely enough. The reasons teams still
+reach for Redux come down to two things Context doesn't solve on its own: **re-render
+granularity** and **built-in tooling**.
+
+### Problem 1: Context re-renders every consumer, not just the ones that care
+
+A `Context.Provider` hands out **one value**. When that value changes, **every**
+component calling `useContext` on it re-renders — even ones that only read a part of
+the value that didn't actually change.
+
+```tsx
+// CartContext.tsx
+const CartContext = createContext<{ user: string; cartCount: number } | null>(null);
+
+function CartProvider({ children }: { children: React.ReactNode }) {
+  const [cartCount, setCartCount] = useState(0);
+  const [user] = useState("Anna");
+
+  useEffect(() => {
+    const id = setInterval(() => setCartCount(c => c + 1), 1000); // changes often
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <CartContext.Provider value={{ user, cartCount }}>
+      {children}
+    </CartContext.Provider>
+  );
+}
+```
+
+```tsx
+// UserBadge.tsx — only ever reads "user", never "cartCount"
+function UserBadge() {
+  const { user } = useContext(CartContext)!;
+  console.log("UserBadge rendered"); // fires every second anyway
+  return <span>{user}</span>;
+}
+```
+
+`value={{ user, cartCount }}` is a **new object on every render**, so every consumer of
+`CartContext` — including `UserBadge`, which never touches `cartCount` — re-renders once
+a second. Context has no built-in way to say "only notify me if `user` changes."
+
+You can work around this by splitting state into several small contexts (one for
+`user`, one for `cart`), so unrelated consumers stop re-rendering together — but now
+you're maintaining several providers nested in your tree, and remembering which piece of
+state lives in which context. That gets unwieldy as an app grows — sometimes called
+**"provider hell."**
+
+### How Redux solves the same problem
+
+```tsx
+function UserBadge() {
+  const user = useSelector((state: RootState) => state.user.name);
+  console.log("UserBadge rendered"); // only fires when state.user.name actually changes
+  return <span>{user}</span>;
+}
+```
+
+`react-redux`'s `useSelector` subscribes to the **result of the selector function**, not
+to the whole store. It compares the selected value between renders (by reference, by
+default) and only re-renders the component if *that specific value* changed — no matter
+how much of the rest of the store changed at the same time. You get the same fix as the
+split-contexts workaround, "for free," from **one** store, without splitting anything.
+
+### Problem 2: Context gives you no tooling, middleware, or structure
+
+- **No DevTools.** Redux DevTools shows every dispatched action, the state before and
+  after it, and lets you "time-travel" back to any previous state — invaluable for
+  debugging. Plain Context has no equivalent; you're back to `console.log`.
+- **No middleware.** Redux has a formal place to hook into every action — logging,
+  analytics, auth checks, or async orchestration (`redux-thunk`, `redux-saga`,
+  `createAsyncThunk`). With Context you'd hand-build all of that yourself, per project.
+- **No enforced structure.** Redux Toolkit's `createSlice` gives a team the same shape
+  for state, actions, and reducers everywhere, and `configureStore` combines many slices
+  into one store. With Context you're free to structure things however you like — which
+  means every codebase ends up doing it differently.
+- **Reducers are trivially testable.** A reducer is a pure function:
+  `(state, action) => newState`. You can unit test it with plain input/output
+  assertions — no rendering, no mocking a provider.
+
+### So when is Context actually fine?
+
+- State that rarely changes (theme, locale, logged-in user) and isn't read by dozens of
+  components at once.
+- Small apps where the extra dependency and boilerplate of Redux genuinely aren't worth
+  it.
+- Passing something down a **short**, known chain of components — the exact
+  "avoid prop drilling" case Context was built for.
+
+Reach for Redux once state changes **often** and is read by **many, unrelated**
+components — that's exactly the combination Context handles worst.
 
 ## Redux with React (Redux Toolkit)
 
@@ -117,37 +216,23 @@ flow, and good devtools (time-travel debugging) matter.
 
 ## Most popular interview questions
 
-**What is the virtual DOM, and why does it help performance?**
-It's an in-memory copy of the UI tree that React diffs against the previous version, so
-only the actually-changed parts of the real DOM get updated — direct DOM updates are
-comparatively slow, so minimizing them helps performance.
+**Why does changing one field in a Context value re-render components that don't use
+that field?**
+A `Context.Provider` has one value as a whole — consumers subscribe to that whole value,
+not to individual fields inside it. If the provider recreates the value object on every
+update (which is normal), every consumer re-renders, whether or not the field they
+actually read changed.
 
-**What's the difference between props and state?**
-Props are passed in by the parent and are read-only from the component's own point of
-view. State is owned and changed by the component itself. Both trigger a re-render when
-they change.
-
-**What do the dependency array and cleanup function in `useEffect` do?**
-The dependency array controls when the effect re-runs — `[]` means only after the first
-render, listing values means it re-runs whenever any of them change. The returned
-cleanup function runs before the next time the effect fires, and on unmount — used to
-cancel subscriptions, timers, or pending requests.
-
-**What are the rules of hooks, and why do they matter?**
-Call hooks only at a component's top level (not inside loops/conditions), and only from
-React functions. React matches hook calls to their state by the **order** they're called
-in on every render — calling them conditionally would break that matching.
-
-**Why do list items need a stable `key` prop?**
-React uses keys to match items between renders — which one moved, which one is new,
-which one was removed. Using array index as a key can cause wrong matches (and buggy
-UI/state) when items are reordered or removed.
+**How does `useSelector` avoid the re-render problem Context has?**
+It subscribes to the *result* of the selector function, not to the whole store, and
+compares that specific result between renders. A component only re-renders when the
+exact slice of state it selected actually changes, no matter what else changed
+elsewhere in the store.
 
 **What problem does Redux solve that `useContext` alone doesn't handle well?**
-`useContext` re-renders every component reading that context on any change, which gets
-expensive for state that updates often. Redux centralizes state with a predictable
-update flow and lets components subscribe only to the specific state slice they need via
-selectors.
+Two things: re-render granularity (Context re-renders every consumer on any change;
+Redux lets each component subscribe to just the slice it needs) and built-in tooling
+(DevTools, middleware, an enforced structure via slices) that Context doesn't provide.
 
 **Walk through the Redux data flow.**
 A component calls `dispatch(action)`. The store passes the current state and that action
@@ -159,13 +244,8 @@ Reducers have to stay synchronous and pure, so async logic lives outside them �
 Toolkit, `createAsyncThunk` dispatches pending/fulfilled/rejected actions automatically
 around a promise; a slice's `extraReducers` updates loading/data/error state in response.
 
-**What's the difference between controlled and uncontrolled components?**
-A controlled input's value is driven by React state (`value={state}` +
-`onChange`) — React is the single source of truth. An uncontrolled input keeps its own
-internal DOM state, and you read it on demand (e.g. via a `ref`) instead of on every
-keystroke.
-
 **When would you NOT reach for Redux?**
-For a small app, or state that's mostly local to one part of the tree — `useState` plus
-maybe `useContext` is simpler and has no extra dependency. Redux earns its complexity
-when a lot of unrelated components need to read/update the same state predictably.
+For a small app, or state that's mostly local to one part of the tree, or state that
+rarely changes and isn't read by many components — `useState` plus maybe `useContext` is
+simpler and has no extra dependency. Redux earns its complexity when a lot of unrelated
+components need to read/update the same, frequently-changing state predictably.
